@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vllm-simulated-model"
+version = "0.1.0"
+description = "A simulated vLLM model that fakes compute and reproduces latency profiles."
+requires-python = ">=3.12"
+dependencies = ["torch"]
+
+[project.optional-dependencies]
+test = ["pytest", "vllm"]
+
+[project.entry-points."vllm.general_plugins"]
+simulated_model = "vllm_simulated:register"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 88
