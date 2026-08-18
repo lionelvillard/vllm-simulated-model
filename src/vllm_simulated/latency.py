@@ -1,5 +1,9 @@
 from dataclasses import dataclass, fields
-from typing import ClassVar
+from typing import ClassVar, Protocol
+
+
+class LatencyModel(Protocol):
+    def step_time_ms(self, shape: "BatchShape") -> float: ...
 
 
 @dataclass(frozen=True)
@@ -58,6 +62,27 @@ class SimulatedLatencyModel:
             + c.ctx_ms_per_ktoken * (shape.sum_context_len / 1000.0)
         )
         return max(0.0, total)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SimulatedLatencyModel":
+        return cls(LatencyConfig.from_dict(d))
+
+
+_REGISTRY: dict[str, type] = {
+    "linear": SimulatedLatencyModel,
+}
+
+
+def build_latency_model(d: dict) -> LatencyModel:
+    d = dict(d)  # don't mutate caller's dict
+    model_type = d.pop("type", "linear")
+    cls = _REGISTRY.get(model_type)
+    if cls is None:
+        raise ValueError(
+            f"Unknown latency model type: {model_type!r}. "
+            f"Known types: {sorted(_REGISTRY)}"
+        )
+    return cls.from_dict(d)
 
 
 def batch_shape_from_attn_metadata(md) -> BatchShape:

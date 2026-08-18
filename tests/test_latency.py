@@ -9,6 +9,7 @@ from vllm_simulated.latency import (
     LatencyConfig,
     SimulatedLatencyModel,
     batch_shape_from_attn_metadata,
+    build_latency_model,
 )
 
 
@@ -52,3 +53,29 @@ def test_batch_shape_from_attn_metadata():
     assert shape == BatchShape(
         num_prefill_tokens=3, num_decode_seqs=2, sum_context_len=29
     )
+
+
+def test_build_latency_model_linear_explicit():
+    model = build_latency_model({"type": "linear", "base_ms": 1.0})
+    assert isinstance(model, SimulatedLatencyModel)
+    shape = BatchShape(num_prefill_tokens=0, num_decode_seqs=0, sum_context_len=0)
+    assert model.step_time_ms(shape) == 1.0
+
+
+def test_build_latency_model_default_type():
+    model = build_latency_model({"base_ms": 2.0})
+    assert isinstance(model, SimulatedLatencyModel)
+    shape = BatchShape(num_prefill_tokens=0, num_decode_seqs=0, sum_context_len=0)
+    assert model.step_time_ms(shape) == 2.0
+
+
+def test_build_latency_model_unknown_type():
+    with pytest.raises(ValueError, match="Unknown latency model type"):
+        build_latency_model({"type": "bogus"})
+
+
+def test_build_latency_model_does_not_mutate_input():
+    d = {"type": "linear", "base_ms": 1.0}
+    original = dict(d)
+    build_latency_model(d)
+    assert d == original
