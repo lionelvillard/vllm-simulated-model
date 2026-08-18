@@ -185,7 +185,10 @@ class PhysicsLatencyModel:
             T_dc_kv = L * 2 * (dKV_full / tp) * (sum_dc_ctx + N_dc) * _ABPP / bw_ms
             w_attn = L * d * (2 * d + 2 * dKV_full) / tp * cfg.wbpp
             w_dense = arch.num_dense_layers * 3 * d * (arch.dFF / tp) * cfg.wbpp
-            w_moe = arch.num_moe_layers * arch.kEff * 3 * d * (arch.dFFMoE / tp) * cfg.wbpp
+            w_moe = (
+                arch.num_moe_layers * arch.kEff * 3 * d
+                * (arch.dFFMoE / tp) * cfg.wbpp
+            )
             w_shared = arch.num_moe_layers * 3 * d * (arch.shared_ffn / tp) * cfg.wbpp
             T_weight = (w_attn + w_dense + w_moe + w_shared) / bw_ms
             T_decode = beta_dc * max(T_dc_compute, T_weight + T_dc_kv)
