@@ -27,3 +27,19 @@ def test_output_length_honors_max_tokens(sim_llm):
     )
     # deterministic_length masks EOS, so the request runs to max_tokens.
     assert len(outputs[0].outputs[0].token_ids) == 8
+import time as _time
+
+
+def test_decode_latency_lower_bound(sim_llm):
+    # sim-tiny: base_ms=1, decode_ms_per_seq=2 -> each decode step sleeps ~3ms
+    # for a single sequence. With max_tokens=10 there are ~10 steps.
+    start = _time.perf_counter()
+    sim_llm.generate(
+        TokensPrompt(prompt_token_ids=[1, 2, 3, 4]),
+        SamplingParams(max_tokens=10),
+    )
+    elapsed_ms = (_time.perf_counter() - start) * 1000.0
+    # time.sleep guarantees AT LEAST the requested duration, so a lower bound
+    # is non-flaky. 10 decode steps * 3ms = 30ms; allow slack for the prefill
+    # step and scheduling. Assert we spent at least half the modeled decode time.
+    assert elapsed_ms >= 10 * 3.0 * 0.5
