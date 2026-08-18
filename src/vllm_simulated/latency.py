@@ -1,4 +1,5 @@
 from dataclasses import dataclass, fields
+from typing import ClassVar
 
 
 @dataclass(frozen=True)
@@ -9,7 +10,7 @@ class LatencyConfig:
     ctx_ms_per_ktoken: float = 0.0
     deterministic_length: bool = True
 
-    _COEFFICIENTS = (
+    _COEFFICIENTS: ClassVar[tuple[str, ...]] = (
         "base_ms",
         "prefill_ms_per_token",
         "decode_ms_per_seq",
