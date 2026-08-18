@@ -2,7 +2,6 @@ import time
 
 import torch
 from torch import nn
-
 from vllm.config import VllmConfig
 from vllm.forward_context import get_forward_context
 from vllm.model_executor.layers.attention import Attention
@@ -12,6 +11,17 @@ from vllm_simulated.latency import (
     SimulatedLatencyModel,
     batch_shape_from_attn_metadata,
 )
+
+
+def _load_latency_config(hf_config) -> LatencyConfig:
+    """Load and validate LatencyConfig from hf_config, raising on missing block."""
+    latency = getattr(hf_config, "latency", None)
+    if not latency:
+        raise ValueError(
+            "SimulatedForCausalLM requires a non-empty 'latency' block in "
+            "the model config; none was found. See the plugin README."
+        )
+    return LatencyConfig.from_dict(latency)
 
 
 class SimulatedForCausalLM(nn.Module):
@@ -49,9 +59,7 @@ class SimulatedForCausalLM(nn.Module):
             ]
         )
 
-        latency_config = LatencyConfig.from_dict(
-            getattr(hf_config, "latency", None) or {}
-        )
+        latency_config = _load_latency_config(hf_config)
         self.latency = SimulatedLatencyModel(latency_config)
         self.deterministic_length = latency_config.deterministic_length
         self.eos_token_id = getattr(hf_config, "eos_token_id", None)
@@ -105,4 +113,4 @@ class SimulatedForCausalLM(nn.Module):
             return None
         if isinstance(attn_metadata, list):
             attn_metadata = attn_metadata[0]
-        return next(iter(attn_metadata.values()))
+        return next(iter(attn_metadata.values()), None)
