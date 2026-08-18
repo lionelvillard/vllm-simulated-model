@@ -301,3 +301,102 @@ def test_mixed_batch_greater_than_either_alone():
     )
     assert model.step_time_ms(mixed) > model.step_time_ms(pf_only)
     assert model.step_time_ms(mixed) > model.step_time_ms(dc_only)
+
+
+# ---------------------------------------------------------------------------
+# MoE — weight and FLOPs accounting
+# ---------------------------------------------------------------------------
+# MoE model: L=2 layers (all MoE), d=64, dH=16, num_heads=4, num_kv_heads=4,
+#   dKV_full=64, num_experts=4, kEff=2, dFFMoE=128, shared_ffn=0, dFF=0
+# Dense baseline: same but no MoE, intermediate_size=128 (2 * kEff/numExperts * dFFMoE)
+#   → dense effectively has same activated FFN compute but different weight footprint
+
+
+def _moe_hf(**kwargs):
+    return _hf(
+        num_hidden_layers=2,
+        num_experts=4,
+        num_experts_per_tok=2,
+        moe_intermediate_size=128,
+        **{"intermediate_size": 0, **kwargs},
+    )
+
+
+def test_moe_higher_weight_than_dense_equivalent():
+    # MoE loads kEff=2 expert weights per step.
+    # Dense baseline with intermediate_size=64 (same compute as kEff/numExperts fraction).
+    # At large batch with slow memory, MoE T_weight > dense T_weight.
+    shape = _shape(
+        num_decode_seqs=1, sum_context_len=10, sum_decode_context_len=10,
+    )
+    moe_model = PhysicsLatencyModel.from_dict(
+        _config(peak_tflops=1e9, hbm_gbps=0.001),
+        hf_config=_moe_hf(),
+    )
+    # Dense with same arch but dFF=64 (kEff/numExperts * dFFMoE = 2/4 * 128 = 64)
+    dense_model = PhysicsLatencyModel.from_dict(
+        _config(peak_tflops=1e9, hbm_gbps=0.001),
+        hf_config=_hf(num_hidden_layers=2, intermediate_size=64),
+    )
+    assert moe_model.step_time_ms(shape) > dense_model.step_time_ms(shape)
+
+
+def test_moe_layer_split_interleaved():
+    # decoder_sparse_step=1 → every other layer is MoE → num_moe_layers = L/2
+    # With L=4: 2 MoE + 2 dense layers
+    hf = _hf(
+        num_hidden_layers=4,
+        intermediate_size=128,    # dense FFN
+        num_experts=4,
+        num_experts_per_tok=2,
+        moe_intermediate_size=128,
+        decoder_sparse_step=1,    # interleave step: 1 → every 2nd layer
+    )
+    model = PhysicsLatencyModel.from_dict(_config(), hf_config=hf)
+    # Verify model was constructed without error (layer split logic ran)
+    assert model is not None
+    # With interleaved MoE, both dense and MoE layers contribute.
+    # step_time_ms should be positive for a non-empty decode batch.
+    shape = _shape(num_decode_seqs=1, sum_context_len=10, sum_decode_context_len=10)
+    assert model.step_time_ms(shape) > 0.0
+
+
+def test_moe_shared_expert_adds_to_flops():
+    # Shared expert increases FLOPs beyond routed experts alone.
+    shape = _shape(
+        num_prefill_tokens=10, num_prefill_seqs=1,
+        sum_context_len=10, sum_decode_context_len=0,
+    )
+    model_no_shared = PhysicsLatencyModel.from_dict(
+        _config(peak_tflops=0.001, hbm_gbps=1e9),
+        hf_config=_moe_hf(),
+    )
+    model_with_shared = PhysicsLatencyModel.from_dict(
+        _config(peak_tflops=0.001, hbm_gbps=1e9),
+        hf_config=_moe_hf(shared_expert_intermediate_size=32),
+    )
+    assert model_with_shared.step_time_ms(shape) > model_no_shared.step_time_ms(shape)
+
+
+def test_all_moe_layers_when_no_interleave():
+    # When decoder_sparse_step is absent (or 0) and num_experts > 0, all layers are
+    # MoE (num_dense_layers == 0).  intermediate_size (the dense FFN size) is
+    # irrelevant because there are no dense FFN layers — the model only uses
+    # expert FLOPs/weights.  Verified by showing that setting intermediate_size=64
+    # produces identical cost to intermediate_size=0 in a pure-MoE (no interleave)
+    # model.
+    shape = _shape(num_decode_seqs=1, sum_context_len=10, sum_decode_context_len=10)
+    moe_no_dense = PhysicsLatencyModel.from_dict(
+        _config(peak_tflops=1e9, hbm_gbps=0.001),
+        hf_config=_moe_hf(),  # no decoder_sparse_step, intermediate_size=0
+    )
+    moe_with_unused_ffn = PhysicsLatencyModel.from_dict(
+        _config(peak_tflops=1e9, hbm_gbps=0.001),
+        hf_config=_moe_hf(intermediate_size=64),  # set but irrelevant
+    )
+    # num_dense_layers == 0 → intermediate_size has no effect on weight or FLOPs
+    assert math.isclose(
+        moe_no_dense.step_time_ms(shape),
+        moe_with_unused_ffn.step_time_ms(shape),
+        rel_tol=1e-9,
+    )
