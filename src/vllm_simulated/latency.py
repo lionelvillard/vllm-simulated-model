@@ -64,7 +64,7 @@ class SimulatedLatencyModel:
         return max(0.0, total)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "SimulatedLatencyModel":
+    def from_dict(cls, d: dict, **kwargs) -> "SimulatedLatencyModel":
         return cls(LatencyConfig.from_dict(d))
 
 
@@ -73,7 +73,7 @@ _REGISTRY: dict[str, type] = {
 }
 
 
-def build_latency_model(d: dict) -> LatencyModel:
+def build_latency_model(d: dict, hf_config=None) -> LatencyModel:
     d = dict(d)  # don't mutate caller's dict
     model_type = d.pop("type", "linear")
     cls = _REGISTRY.get(model_type)
@@ -82,7 +82,7 @@ def build_latency_model(d: dict) -> LatencyModel:
             f"Unknown latency model type: {model_type!r}. "
             f"Known types: {sorted(_REGISTRY)}"
         )
-    return cls.from_dict(d)
+    return cls.from_dict(d, hf_config=hf_config)
 
 
 def batch_shape_from_attn_metadata(md) -> BatchShape:

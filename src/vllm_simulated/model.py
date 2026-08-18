@@ -14,14 +14,14 @@ from vllm_simulated.latency import (
 
 
 def _build_latency_model(hf_config) -> LatencyModel:
-    """Load and build a LatencyModel from hf_config, raising on missing block."""
+    """Build a LatencyModel from hf_config, raising on missing latency block."""
     latency = getattr(hf_config, "latency", None)
     if not latency:
         raise ValueError(
             "SimulatedForCausalLM requires a non-empty 'latency' block in "
             "the model config; none was found. See the plugin README."
         )
-    return build_latency_model(latency)
+    return build_latency_model(latency, hf_config=hf_config)
 
 
 class SimulatedForCausalLM(nn.Module):
@@ -41,9 +41,6 @@ class SimulatedForCausalLM(nn.Module):
         num_kv_heads = model_config.get_num_kv_heads(parallel_config)
         head_size = model_config.get_head_size()
 
-        # Real Attention modules make get_kv_cache_spec() non-empty so the
-        # scheduler/KV-cache manager allocates blocks like a real transformer.
-        # Their attention math is never executed in forward().
         self.attn_layers = nn.ModuleList(
             [
                 Attention(

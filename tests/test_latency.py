@@ -79,3 +79,12 @@ def test_build_latency_model_does_not_mutate_input():
     original = dict(d)
     build_latency_model(d)
     assert d == original
+
+
+def test_build_latency_model_passes_hf_config():
+    import types
+
+    hf_config = types.SimpleNamespace(extra_field=42)
+    # linear model ignores hf_config — should not raise
+    model = build_latency_model({"base_ms": 1.0}, hf_config=hf_config)
+    assert isinstance(model, SimulatedLatencyModel)
