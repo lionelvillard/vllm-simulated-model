@@ -21,14 +21,27 @@ changes to vLLM are needed.
 ## Run
 
 ```bash
-vllm serve ./examples/sim-llama3-8b \
+vllm serve ./examples/sim-qwen-3.8-27b \
   --load-format dummy \
-  --tokenizer meta-llama/Meta-Llama-3-8B   # or --skip-tokenizer-init
+  --gpu-memory-utilization 0.2 \
+  --tokenizer Qwen/Qwen3.8-27B   # or --skip-tokenizer-init
 ```
 
 Then benchmark it like any vLLM server (e.g. `vllm bench serve ...`). Measured
 TTFT/ITL reflect the configured latency model, while every other component is
 the real vLLM code path.
+
+## Send Request
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "./examples/sim-qwen-3.8-27b",
+    "messages": [{"role": "user", "content": "Hello, world!"}],
+    "max_tokens": 32
+  }'
+```
 
 ## Latency model
 

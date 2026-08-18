@@ -1,6 +1,6 @@
 {
   "architectures": ["SimulatedForCausalLM"],
-  "model_type": "llama",
+  "model_type": "qwen3_5",
   "hidden_size": 4096,
   "num_hidden_layers": 32,
   "num_attention_heads": 32,
