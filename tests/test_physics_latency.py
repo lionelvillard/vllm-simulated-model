@@ -324,7 +324,8 @@ def _moe_hf(**kwargs):
 
 def test_moe_higher_weight_than_dense_equivalent():
     # MoE loads kEff=2 expert weights per step.
-    # Dense baseline with intermediate_size=64 (same compute as kEff/numExperts fraction).
+    # Dense baseline with intermediate_size=64 (same compute as
+    # kEff/numExperts fraction).
     # At large batch with slow memory, MoE T_weight > dense T_weight.
     shape = _shape(
         num_decode_seqs=1, sum_context_len=10, sum_decode_context_len=10,
