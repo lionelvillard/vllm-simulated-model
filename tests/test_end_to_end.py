@@ -1,11 +1,13 @@
+import time as _time
+
 import pytest
 
 pytest.importorskip("vllm")
 
-from vllm import LLM, SamplingParams  # noqa: E402
-from vllm.inputs import TokensPrompt  # noqa: E402
+from vllm import LLM, SamplingParams
+from vllm.inputs import TokensPrompt
 
-import vllm_simulated  # noqa: E402
+import vllm_simulated
 
 
 @pytest.fixture(scope="module")
@@ -27,7 +29,6 @@ def test_output_length_honors_max_tokens(sim_llm):
     )
     # deterministic_length masks EOS, so the request runs to max_tokens.
     assert len(outputs[0].outputs[0].token_ids) == 8
-import time as _time
 
 
 def test_decode_latency_lower_bound(sim_llm):

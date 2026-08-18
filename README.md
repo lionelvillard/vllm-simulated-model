@@ -46,8 +46,11 @@ overridden at launch:
 
 ```bash
 vllm serve ./examples/sim-llama3-8b --load-format dummy \
-  --hf-overrides '{"latency": {"decode_ms_per_seq": 2.0}}'
+  --hf-overrides '{"latency": {"base_ms": 5.0, "prefill_ms_per_token": 0.05, "decode_ms_per_seq": 2.0, "ctx_ms_per_ktoken": 0.3, "deterministic_length": true}}'
 ```
+
+Note: `--hf-overrides` replaces the entire `latency` mapping rather than
+merging into it, so include every coefficient you want set.
 
 `deterministic_length: true` masks the EOS token so requests run to `max_tokens`
 — convenient for fixed-length ITL benchmarking.
