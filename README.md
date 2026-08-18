@@ -8,10 +8,15 @@ on a laptop.
 
 ## Install
 
+> **Note:** vLLM must be compiled from source — `pip install vllm` does not
+> support CPU-only / macOS environments. See the
+> [vLLM build guide](https://docs.vllm.ai/en/latest/getting_started/installation/cpu.html)
+> for platform-specific instructions.
+
 ```bash
 uv venv --python 3.12
 source .venv/bin/activate
-uv pip install vllm
+# Build and install vLLM from source first (see note above)
 uv pip install -e .
 ```
 
