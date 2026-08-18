@@ -401,3 +401,27 @@ def test_all_moe_layers_when_no_interleave():
         moe_with_unused_ffn.step_time_ms(shape),
         rel_tol=1e-9,
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry integration
+# ---------------------------------------------------------------------------
+
+def test_registry_builds_physics_model():
+    import types
+    from vllm_simulated.latency import build_latency_model
+
+    hf = _hf()
+    cfg = _config()
+    cfg["type"] = "physics"
+    model = build_latency_model(cfg, hf_config=hf)
+    assert isinstance(model, PhysicsLatencyModel)
+
+
+def test_registry_linear_still_works():
+    from vllm_simulated.latency import build_latency_model, SimulatedLatencyModel
+
+    model = build_latency_model({"type": "linear", "base_ms": 3.0})
+    assert isinstance(model, SimulatedLatencyModel)
+    shape = BatchShape(num_prefill_tokens=0, num_decode_seqs=0, sum_context_len=0)
+    assert model.step_time_ms(shape) == 3.0

@@ -75,6 +75,16 @@ _REGISTRY: dict[str, type] = {
 }
 
 
+def _lazy_load_physics_model():
+    """Lazy load PhysicsLatencyModel to avoid circular imports."""
+    from vllm_simulated.physics_latency import PhysicsLatencyModel
+    return PhysicsLatencyModel
+
+
+# Register physics model after linear model is defined
+_REGISTRY["physics"] = _lazy_load_physics_model()
+
+
 def build_latency_model(d: dict, hf_config=None) -> LatencyModel:
     d = dict(d)  # don't mutate caller's dict
     model_type = d.pop("type", "linear")
