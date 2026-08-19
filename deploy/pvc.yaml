@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-sim-hf-cache
+  labels:
+    app: vllm-sim
+spec:
+  # ReadWriteMany so every replica shares one warm HuggingFace cache: the
+  # first pod downloads the tokenizer, the rest read it without hitting the
+  # network on the cold-start critical path.
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ibm-spectrum-scale-fileset
+  resources:
+    requests:
+      storage: 1Gi

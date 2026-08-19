@@ -49,6 +49,12 @@ spec:
           value: /tmp
         - name: XDG_CACHE_HOME
           value: /tmp/cache
+        # Point the HuggingFace cache at the shared PVC so the tokenizer is
+        # downloaded once and reused by every replica (no network on cold
+        # start). Kept online (not HF_HUB_OFFLINE) so an empty/cold cache
+        # self-heals by re-downloading.
+        - name: HF_HOME
+          value: /hf-cache
         - name: HF_TOKEN
           valueFrom:
             secretKeyRef:
@@ -58,19 +64,27 @@ spec:
         ports:
         - containerPort: 8000
           name: http
+        # startupProbe gates liveness/readiness: neither runs until startup
+        # succeeds, so the pod reports Ready as soon as vLLM actually serves
+        # (instead of a fixed 60s delay) and there is no restart risk while the
+        # engine is still importing. Budget: periodSeconds * failureThreshold.
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 60
           periodSeconds: 10
-          failureThreshold: 6
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 60
-          periodSeconds: 10
+          periodSeconds: 5
           failureThreshold: 3
         resources:
           requests:
@@ -87,6 +101,8 @@ spec:
           readOnly: true
         - name: dshm
           mountPath: /dev/shm
+        - name: hf-cache
+          mountPath: /hf-cache
       volumes:
       - name: plugins
         emptyDir: {}
@@ -97,3 +113,6 @@ spec:
         emptyDir:
           medium: Memory
           sizeLimit: 256Mi
+      - name: hf-cache
+        persistentVolumeClaim:
+          claimName: vllm-sim-hf-cache
