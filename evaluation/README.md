@@ -107,7 +107,7 @@ The script waits for both Services' `/health` endpoints to respond, then runs `r
 
 ## Run the evaluation (in-cluster)
 
-Alternatively, run the driver fully in-cluster via a Job:
+Alternatively, run the driver fully in-cluster via a Job. **Note:** This in-cluster Job path has NOT been validated against a live cluster (the validated path is `run_eval.sh`). It uses the vLLM CPU image (for the `vllm bench serve` CLI) and puts the evaluation source tree on PYTHONPATH.
 
 ```bash
 oc apply -n <namespace> -f deploy/eval/benchmark-job.yaml

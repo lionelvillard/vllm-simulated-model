@@ -9,6 +9,12 @@ REAL_PORT="${REAL_PORT:-9001}"
 SIM_PORT="${SIM_PORT:-9002}"
 OUT="${OUT:-eval-out}"
 KUBECTL="${KUBECTL:-oc}"
+PYTHON="${PYTHON:-python}"
+
+# Run from the repo root so `python -m evaluation.run_eval` resolves.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 
 ns_flag=()
 [ -n "$NAMESPACE" ] && ns_flag=(-n "$NAMESPACE")
@@ -37,7 +43,7 @@ wait_health() {
 wait_health "$REAL_PORT" real
 wait_health "$SIM_PORT" sim
 
-python -m evaluation.run_eval \
+"$PYTHON" -m evaluation.run_eval \
   --real-url "http://localhost:$REAL_PORT" \
   --sim-url "http://localhost:$SIM_PORT" \
   --out "$OUT"

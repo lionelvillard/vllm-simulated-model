@@ -1,3 +1,13 @@
+# In-cluster evaluation driver (Job).
+#
+# NOTE: This path has NOT been validated against a live cluster (see the design
+# doc "Post-Smoke-Test Amendments" section). The default, validated path is
+# evaluation/run_eval.sh (local port-forward). This Job is a convenience
+# alternative for running the same sweep entirely in-cluster.
+#
+# It uses the vLLM CPU image (for the `vllm bench serve` CLI) and puts the eval
+# source tree on PYTHONPATH, because the `evaluation` package is not part of the
+# installable wheel (pyproject packages only src/).
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -5,6 +15,7 @@ metadata:
   labels:
     app: vllm-benchmark
 spec:
+  backoffLimit: 0
   template:
     metadata:
       labels:
@@ -13,13 +24,36 @@ spec:
       restartPolicy: Never
       containers:
       - name: benchmark
-        image: python:3.12-slim
+        image: vllm/vllm-openai-cpu:latest-x86_64
         command:
         - /bin/bash
         - -c
         - |
-          pip install --no-cache-dir 'vllm-simulated-model[eval] @ https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz'
-          python -m evaluation.run_eval --real-url http://vllm-real:8000 --sim-url http://vllm-sim:8000 --out /out
+          set -euo pipefail
+          mkdir -p /tmp/src /tmp/pydeps
+          python -c "import urllib.request, tarfile; \
+            urllib.request.urlretrieve('https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz', '/tmp/src.tgz'); \
+            tarfile.open('/tmp/src.tgz').extractall('/tmp/src')"
+          pip install --no-cache-dir --target=/tmp/pydeps pyyaml
+          export PYTHONPATH="/tmp/src/vllm-simulated-model-main:/tmp/pydeps"
+          cd /tmp/src/vllm-simulated-model-main
+          python -m evaluation.run_eval \
+            --real-url http://vllm-real:8000 \
+            --sim-url http://vllm-sim:8000 \
+            --out /out
+        env:
+        - name: HOME
+          value: /tmp
+        - name: XDG_CACHE_HOME
+          value: /tmp/cache
+        - name: HF_HOME
+          value: /tmp/hf
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+              optional: true
         volumeMounts:
         - name: output
           mountPath: /out

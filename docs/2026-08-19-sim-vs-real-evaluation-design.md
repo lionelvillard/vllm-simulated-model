@@ -151,12 +151,13 @@ mounted volume).
 ### 4.3 `run_eval.py` (driver)
 
 - **Inputs:** `--real-url`, `--sim-url`, `--model qwen3-32b`, `--tokenizer
-  Qwen/Qwen3-32B`, `--sweep sweep.yaml`, `--out <dir>`, `--warmup N`.
+  Qwen/Qwen3-32B`, `--sweep sweep.yaml`, `--out <dir>`, `--no-warmup`.
 - **Per sweep point** (ISL, OSL, concurrency/rate): invoke `vllm bench serve` as a
   subprocess with a fixed `--seed`, `--ignore-eos`, `--num-prompts`,
   `--max-concurrency`, `--random-input-len`, `--random-output-len`,
   `--save-result --result-filename <point>-{real,sim}.json`, once per endpoint
-  (real, then sim). Discard `--warmup` requests (or a warmup pre-run).
+  (real, then sim). Warmup is on by default (a discarded pre-run per point,
+  sized to the point's concurrency); use `--no-warmup` to disable.
 - **Then:** hand the two result JSONs per point to `compare.py`.
 - **Depends on:** `vllm` CLI available on the driver host; reachable URLs.
 

@@ -22,10 +22,12 @@ class MetricComparison:
 
 METRICS: list[Metric] = [
     Metric("TTFT mean", "mean_ttft_ms", "ms", True),
+    Metric("TTFT median", "median_ttft_ms", "ms", True),
     Metric("TTFT p90", "p90_ttft_ms", "ms", True),
     Metric("TTFT p99", "p99_ttft_ms", "ms", True),
     Metric("TPOT mean", "mean_tpot_ms", "ms", True),
     Metric("ITL mean", "mean_itl_ms", "ms", True),
+    Metric("ITL median", "median_itl_ms", "ms", True),
     Metric("ITL p99", "p99_itl_ms", "ms", True),
     Metric("E2E mean", "mean_e2el_ms", "ms", True),
     Metric("E2E p99", "p99_e2el_ms", "ms", True),

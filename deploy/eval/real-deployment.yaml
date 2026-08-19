@@ -14,6 +14,17 @@ spec:
       labels:
         app: vllm-real
     spec:
+      # Pin to H100 SXM5 nodes — the physics latency config is hardcoded to H100
+      # SXM5 constants (peak_tflops 989, hbm_gbps 3350). Replace the label below
+      # with your cluster's actual H100 node label before applying; scheduling on
+      # a different GPU silently invalidates the comparison.
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3  # <-- verify/replace for your cluster
+      # If your GPU nodes are tainted, uncomment and adjust:
+      # tolerations:
+      # - key: nvidia.com/gpu
+      #   operator: Exists
+      #   effect: NoSchedule
       containers:
       - name: vllm
         image: vllm/vllm-openai:latest
