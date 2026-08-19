@@ -1,5 +1,19 @@
 # CLAUDE.md
 
+## vLLM source checkout
+
+A full vLLM checkout is available locally as a **sibling of the main repo root**
+(not the worktree): `../vllm` relative to
+`vllm-simulated-model/`, i.e. absolute
+`/Users/villardl/Projects/github.com/vllm-project/vllm`.
+
+Use it read-only to look up vLLM internals, CLI flags, and benchmark result
+schemas (e.g. `vllm/benchmarks/serve.py`). **Do not modify the sibling project.**
+
+Note for worktrees: this file may be checked out under
+`vllm-simulated-model/.claude/worktrees/<name>/`, so `../vllm` from the worktree
+does **not** point at the checkout — resolve it from the main repo root instead.
+
 ## Running tests
 
 The test suite requires a virtual environment. Each worktree (and the root
