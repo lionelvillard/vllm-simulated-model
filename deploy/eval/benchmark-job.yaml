@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vllm-benchmark
+  labels:
+    app: vllm-benchmark
+spec:
+  template:
+    metadata:
+      labels:
+        app: vllm-benchmark
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: benchmark
+        image: python:3.12-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          pip install --no-cache-dir 'vllm-simulated-model[eval] @ https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz'
+          python -m evaluation.run_eval --real-url http://vllm-real:8000 --sim-url http://vllm-sim:8000 --out /out
+        volumeMounts:
+        - name: output
+          mountPath: /out
+      volumes:
+      - name: output
+        emptyDir: {}

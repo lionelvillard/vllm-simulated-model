@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-real
+  labels:
+    app: vllm-real
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-real
+  template:
+    metadata:
+      labels:
+        app: vllm-real
+    spec:
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai:latest
+        command:
+        - vllm
+        - serve
+        - Qwen/Qwen3-32B
+        args:
+        - --served-model-name
+        - qwen3-32b
+        - --tokenizer
+        - Qwen/Qwen3-32B
+        - --tensor-parallel-size
+        - "1"
+        - --gpu-memory-utilization
+        - "0.9"
+        - --max-model-len
+        - "8192"
+        env:
+        - name: HF_HOME
+          value: /tmp/hf
+        - name: HOME
+          value: /tmp
+        - name: XDG_CACHE_HOME
+          value: /tmp/cache
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+              optional: true
+        ports:
+        - containerPort: 8000
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 600
+          periodSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 600
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: 32Gi
+            nvidia.com/gpu: 1
+          limits:
+            memory: 32Gi
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: hf-cache
+          mountPath: /tmp/hf
+      volumes:
+      - name: hf-cache
+        emptyDir:
+          sizeLimit: 80Gi
