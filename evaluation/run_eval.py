@@ -1,10 +1,15 @@
 import argparse
 import json
 import subprocess
+import sys
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+
+# Resolve vllm from the same venv as this interpreter, not from PATH.
+_VLLM_BIN = str(Path(sys.executable).parent / "vllm")
 
 from evaluation.compare import (
     PointResult, aggregate, compare_point, load_result,
@@ -49,7 +54,7 @@ def bench_argv(
     endpoint: str = "/v1/completions",
 ) -> list[str]:
     return [
-        "vllm", "bench", "serve",
+        _VLLM_BIN, "bench", "serve",
         "--backend", backend,
         "--base-url", base_url,
         "--endpoint", endpoint,
@@ -70,6 +75,12 @@ def bench_argv(
     ]
 
 
+def _detect_model(base_url: str) -> str:
+    with urllib.request.urlopen(f"{base_url}/v1/models", timeout=10) as resp:
+        data = json.loads(resp.read())
+    return data["data"][0]["id"]
+
+
 def _run_bench(argv: list[str]) -> None:
     subprocess.run(argv, check=True)
 
@@ -86,15 +97,21 @@ def _warmup_argv(point, *, base_url, model, tokenizer, result_dir, seed):
 
 
 def run(
-    *, real_url, sim_url, model, tokenizer, sweep_path, out_dir,
+    *, real_url, sim_url, tokenizer, sweep_path, out_dir,
     seed=0, warmup=True,
 ):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     points = load_sweep(sweep_path)
+    endpoints = [
+        ("real", real_url, _detect_model(real_url)),
+        ("sim",  sim_url,  _detect_model(sim_url)),
+    ]
+    for label, url, model in endpoints:
+        print(f"{label}: {url}  model={model}")
     results: list[PointResult] = []
     for pt in points:
-        for label, url in (("real", real_url), ("sim", sim_url)):
+        for label, url, model in endpoints:
             if warmup:
                 _run_bench(_warmup_argv(
                     pt, base_url=url, model=model, tokenizer=tokenizer,
@@ -130,7 +147,6 @@ def main(argv=None):
     )
     ap.add_argument("--real-url", required=True)
     ap.add_argument("--sim-url", required=True)
-    ap.add_argument("--model", default="qwen3-32b")
     ap.add_argument("--tokenizer", default="Qwen/Qwen3-32B")
     ap.add_argument(
         "--sweep", default=str(Path(__file__).parent / "sweep.yaml")
@@ -139,7 +155,7 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-warmup", action="store_true")
     args = ap.parse_args(argv)
-    run(real_url=args.real_url, sim_url=args.sim_url, model=args.model,
+    run(real_url=args.real_url, sim_url=args.sim_url,
         tokenizer=args.tokenizer, sweep_path=args.sweep, out_dir=args.out,
         seed=args.seed, warmup=not args.no_warmup)
 
