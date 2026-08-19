@@ -7,15 +7,15 @@ pytest.importorskip("vllm")
 
 from vllm_simulated.model import (
     SimulatedForCausalLM,
-    _load_latency_config,
+    _build_latency_model,
 )
 
 
 def test_missing_latency_block_raises():
     with pytest.raises(ValueError, match="latency"):
-        _load_latency_config(types.SimpleNamespace())
+        _build_latency_model(types.SimpleNamespace())
     with pytest.raises(ValueError, match="latency"):
-        _load_latency_config(types.SimpleNamespace(latency={}))
+        _build_latency_model(types.SimpleNamespace(latency={}))
 
 
 def test_eos_masking_toggle():

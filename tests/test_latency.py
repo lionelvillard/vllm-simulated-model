@@ -9,6 +9,7 @@ from vllm_simulated.latency import (
     LatencyConfig,
     SimulatedLatencyModel,
     batch_shape_from_attn_metadata,
+    build_latency_model,
 )
 
 
@@ -50,5 +51,67 @@ def test_batch_shape_from_attn_metadata():
     )
     shape = batch_shape_from_attn_metadata(md)
     assert shape == BatchShape(
-        num_prefill_tokens=3, num_decode_seqs=2, sum_context_len=29
+        num_prefill_tokens=3,
+        num_decode_seqs=2,
+        sum_context_len=29,
+        num_prefill_seqs=1,
+        sum_decode_context_len=22,
     )
+
+
+def test_build_latency_model_linear_explicit():
+    model = build_latency_model({"type": "linear", "base_ms": 1.0})
+    assert isinstance(model, SimulatedLatencyModel)
+    shape = BatchShape(num_prefill_tokens=0, num_decode_seqs=0, sum_context_len=0)
+    assert model.step_time_ms(shape) == 1.0
+
+
+def test_build_latency_model_default_type():
+    model = build_latency_model({"base_ms": 2.0})
+    assert isinstance(model, SimulatedLatencyModel)
+    shape = BatchShape(num_prefill_tokens=0, num_decode_seqs=0, sum_context_len=0)
+    assert model.step_time_ms(shape) == 2.0
+
+
+def test_build_latency_model_unknown_type():
+    with pytest.raises(ValueError, match="Unknown latency model type"):
+        build_latency_model({"type": "bogus"})
+
+
+def test_build_latency_model_does_not_mutate_input():
+    d = {"type": "linear", "base_ms": 1.0}
+    original = dict(d)
+    build_latency_model(d)
+    assert d == original
+
+
+def test_build_latency_model_passes_hf_config():
+    import types
+
+    hf_config = types.SimpleNamespace(extra_field=42)
+    # linear model ignores hf_config — should not raise
+    model = build_latency_model({"base_ms": 1.0}, hf_config=hf_config)
+    assert isinstance(model, SimulatedLatencyModel)
+
+
+def test_batch_shape_backward_compat():
+    # Existing 3-arg construction must still work; new fields default to 0
+    shape = BatchShape(
+        num_prefill_tokens=5, num_decode_seqs=2, sum_context_len=30
+    )
+    assert shape.num_prefill_seqs == 0
+    assert shape.sum_decode_context_len == 0
+
+
+def test_batch_shape_from_attn_metadata_populates_new_fields():
+    # 2 decode seqs (query_len=1 each) + 1 prefill seq (query_len=3)
+    # seq_lens: decode seqs have lens [10, 12], prefill seq has len 7
+    md = SimpleNamespace(
+        query_start_loc=torch.tensor([0, 1, 2, 5]),
+        seq_lens=torch.tensor([10, 12, 7]),
+    )
+    shape = batch_shape_from_attn_metadata(md)
+    assert shape.num_prefill_seqs == 1
+    assert shape.sum_decode_context_len == 22  # 10 + 12
+    # sum_context_len unchanged: 10+12+7=29
+    assert shape.sum_context_len == 29

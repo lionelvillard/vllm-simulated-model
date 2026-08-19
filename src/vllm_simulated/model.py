@@ -7,21 +7,21 @@ from vllm.forward_context import get_forward_context
 from vllm.model_executor.layers.attention import Attention
 
 from vllm_simulated.latency import (
-    LatencyConfig,
-    SimulatedLatencyModel,
+    LatencyModel,
     batch_shape_from_attn_metadata,
+    build_latency_model,
 )
 
 
-def _load_latency_config(hf_config) -> LatencyConfig:
-    """Load and validate LatencyConfig from hf_config, raising on missing block."""
+def _build_latency_model(hf_config) -> LatencyModel:
+    """Build a LatencyModel from hf_config, raising on missing latency block."""
     latency = getattr(hf_config, "latency", None)
     if not latency:
         raise ValueError(
             "SimulatedForCausalLM requires a non-empty 'latency' block in "
             "the model config; none was found. See the plugin README."
         )
-    return LatencyConfig.from_dict(latency)
+    return build_latency_model(latency, hf_config=hf_config)
 
 
 class SimulatedForCausalLM(nn.Module):
@@ -41,9 +41,6 @@ class SimulatedForCausalLM(nn.Module):
         num_kv_heads = model_config.get_num_kv_heads(parallel_config)
         head_size = model_config.get_head_size()
 
-        # Real Attention modules make get_kv_cache_spec() non-empty so the
-        # scheduler/KV-cache manager allocates blocks like a real transformer.
-        # Their attention math is never executed in forward().
         self.attn_layers = nn.ModuleList(
             [
                 Attention(
@@ -59,9 +56,10 @@ class SimulatedForCausalLM(nn.Module):
             ]
         )
 
-        latency_config = _load_latency_config(hf_config)
-        self.latency = SimulatedLatencyModel(latency_config)
-        self.deterministic_length = latency_config.deterministic_length
+        self.latency = _build_latency_model(hf_config)
+        self.deterministic_length = getattr(hf_config, "latency", {}).get(
+            "deterministic_length", True
+        )
         self.eos_token_id = getattr(hf_config, "eos_token_id", None)
 
     def embed_input_ids(

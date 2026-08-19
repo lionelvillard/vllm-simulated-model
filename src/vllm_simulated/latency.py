@@ -1,5 +1,9 @@
 from dataclasses import dataclass, fields
-from typing import ClassVar
+from typing import ClassVar, Protocol
+
+
+class LatencyModel(Protocol):
+    def step_time_ms(self, shape: "BatchShape") -> float: ...
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,8 @@ class BatchShape:
     num_prefill_tokens: int
     num_decode_seqs: int
     sum_context_len: int
+    num_prefill_seqs: int = 0
+    sum_decode_context_len: int = 0
 
 
 class SimulatedLatencyModel:
@@ -59,16 +65,51 @@ class SimulatedLatencyModel:
         )
         return max(0.0, total)
 
+    @classmethod
+    def from_dict(cls, d: dict, **kwargs) -> "SimulatedLatencyModel":
+        return cls(LatencyConfig.from_dict(d))
+
+
+_REGISTRY: dict[str, type] = {
+    "linear": SimulatedLatencyModel,
+}
+
+
+def _lazy_load_physics_model():
+    """Lazy load PhysicsLatencyModel to avoid circular imports."""
+    from vllm_simulated.physics_latency import PhysicsLatencyModel
+    return PhysicsLatencyModel
+
+
+# Register physics model after linear model is defined
+_REGISTRY["physics"] = _lazy_load_physics_model()
+
+
+def build_latency_model(d: dict, hf_config=None) -> LatencyModel:
+    d = dict(d)  # don't mutate caller's dict
+    model_type = d.pop("type", "linear")
+    cls = _REGISTRY.get(model_type)
+    if cls is None:
+        raise ValueError(
+            f"Unknown latency model type: {model_type!r}. "
+            f"Known types: {sorted(_REGISTRY)}"
+        )
+    return cls.from_dict(d, hf_config=hf_config)
+
 
 def batch_shape_from_attn_metadata(md) -> BatchShape:
     query_start_loc = md.query_start_loc
     query_lens = query_start_loc[1:] - query_start_loc[:-1]
     is_decode = query_lens <= 1
     num_decode_seqs = int(is_decode.sum().item())
+    num_prefill_seqs = int((~is_decode).sum().item())
     num_prefill_tokens = int(query_lens[~is_decode].sum().item())
     sum_context_len = int(md.seq_lens.sum().item())
+    sum_decode_context_len = int(md.seq_lens[is_decode].sum().item())
     return BatchShape(
         num_prefill_tokens=num_prefill_tokens,
         num_decode_seqs=num_decode_seqs,
         sum_context_len=sum_context_len,
+        num_prefill_seqs=num_prefill_seqs,
+        sum_decode_context_len=sum_decode_context_len,
     )
