@@ -71,6 +71,15 @@ container.
 **Prerequisites:** a cluster with at least one CPU node (4 CPU / 8 Gi) and internet
 egress so the init container can fetch the package from GitHub.
 
+If you need a private HuggingFace tokenizer, create the Secret before deploying
+(the deployment has `optional: true` so it starts fine without it):
+
+```bash
+kubectl create secret generic hf-token \
+  --from-literal=token=<your-hf-token> \
+  -n <namespace>
+```
+
 **Run the simulator:**
 
 ```bash
@@ -100,20 +109,6 @@ curl -X POST http://localhost:8000/v1/chat/completions \
     "max_tokens": 16
   }'
 ```
-
-#### HuggingFace token
-
-The tokenizer (`Qwen/Qwen3-8B`) is publicly accessible without a token. If you need a
-private tokenizer, create a Secret and the deployment will pick it up automatically:
-
-```bash
-kubectl create secret generic hf-token \
-  --from-literal=token=<your-hf-token> \
-  -n <namespace>
-```
-
-The deployment mounts this Secret as `HF_TOKEN` with `optional: true` — the pod starts
-normally even if the Secret does not exist.
 
 #### Tuning
 
