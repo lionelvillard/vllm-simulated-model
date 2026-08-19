@@ -35,7 +35,7 @@ spec:
         - serve
         - /model
         - --load-format=dummy
-        - --tokenizer=gpt2
+        - --tokenizer=Qwen/Qwen3.8-27B
         - --gpu-memory-utilization=0.5
         env:
         - name: PYTHONPATH
