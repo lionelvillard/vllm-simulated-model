@@ -1,0 +1,14 @@
+{
+  "duration": 30.0, "completed": 256,
+  "total_input_tokens": 262144, "total_output_tokens": 32768,
+  "request_throughput": 8.4, "output_throughput": 1100.0,
+  "total_token_throughput": 9500.0,
+  "mean_ttft_ms": 110.0, "median_ttft_ms": 100.0, "std_ttft_ms": 12.0,
+  "p90_ttft_ms": 165.0, "p99_ttft_ms": 240.0,
+  "mean_tpot_ms": 19.0, "median_tpot_ms": 18.0, "std_tpot_ms": 2.0,
+  "p90_tpot_ms": 22.0, "p99_tpot_ms": 27.0,
+  "mean_itl_ms": 19.0, "median_itl_ms": 18.0, "std_itl_ms": 2.0,
+  "p90_itl_ms": 22.0, "p99_itl_ms": 27.0,
+  "mean_e2el_ms": 1900.0, "median_e2el_ms": 1850.0, "std_e2el_ms": 95.0,
+  "p90_e2el_ms": 2280.0, "p99_e2el_ms": 2850.0
+}
