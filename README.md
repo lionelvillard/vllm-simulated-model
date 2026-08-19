@@ -14,6 +14,7 @@ on a laptop.
 - [Latency models](#latency-models)
   - [Linear model](#linear-model-type-linear)
   - [Physics model](#physics-model-type-physics)
+- [Evaluation](#evaluation)
 - [Comparison with related tools](#comparison-with-related-tools)
 - [Limitations](#limitations)
 
@@ -258,6 +259,12 @@ and tune against a short real benchmark run:
   "deterministic_length": true
 }
 ```
+
+## Evaluation
+
+The `evaluation/` directory provides an automated tool to measure how accurately the simulator reproduces the latency and throughput behavior of a real vLLM server running on an H100 GPU. The tool runs identical benchmark workloads against both a real model deployment and the simulated model, then reports per-metric error (MAPE) and signed error to guide physics model tuning.
+
+See [evaluation/README.md](evaluation/README.md) for the full operator runbook, including deployment steps, how to run the evaluation, and how to interpret and act on the results.
 
 ## Comparison with related tools
 

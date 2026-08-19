@@ -10,7 +10,8 @@ requires-python = ">=3.12"
 dependencies = ["torch"]
 
 [project.optional-dependencies]
-test = ["pytest", "vllm"]
+test = ["pytest", "vllm", "pyyaml"]
+eval = ["pyyaml"]
 
 [project.entry-points."vllm.general_plugins"]
 simulated_model = "vllm_simulated:register"
