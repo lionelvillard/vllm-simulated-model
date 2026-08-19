@@ -42,7 +42,8 @@ changes to vLLM are needed.
 vllm serve ./examples/sim-qwen-3.8-27b \
   --load-format dummy \
   --gpu-memory-utilization 0.2 \
-  --tokenizer Qwen/Qwen3.8-27B   # or --skip-tokenizer-init
+  --tokenizer Qwen/Qwen3-8B \
+  --served-model-name sim-qwen-3.8-27b
 ```
 
 Then benchmark it like any vLLM server (e.g. `vllm bench serve ...`). Measured
@@ -55,7 +56,7 @@ the real vLLM code path.
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "./examples/sim-qwen-3.8-27b",
+    "model": "sim-qwen-3.8-27b",
     "messages": [{"role": "user", "content": "Hello, world!"}],
     "max_tokens": 32
   }'
@@ -91,15 +92,28 @@ The pod takes roughly 60–120 s to become ready: the init container installs th
 
 ```bash
 kubectl port-forward svc/vllm-sim 8000:8000
-curl http://localhost:8000/v1/completions \
+curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model": "/model", "prompt": "hello", "max_tokens": 16}'
+  -d '{
+    "model": "sim-qwen-3.8-27b",
+    "messages": [{"role": "user", "content": "Hello, world!"}],
+    "max_tokens": 16
+  }'
 ```
 
-> **Note:** The manifests use `--tokenizer=gpt2`, which has no chat template. The
-> `/v1/completions` endpoint works out of the box. For `/v1/chat/completions`, swap in a
-> tokenizer that ships with a chat template (e.g. `--tokenizer=Qwen/Qwen3-8B`) by editing
-> the `command` in `deploy/deployment.yaml`.
+#### HuggingFace token
+
+The tokenizer (`Qwen/Qwen3-8B`) is publicly accessible without a token. If you need a
+private tokenizer, create a Secret and the deployment will pick it up automatically:
+
+```bash
+kubectl create secret generic hf-token \
+  --from-literal=token=<your-hf-token> \
+  -n <namespace>
+```
+
+The deployment mounts this Secret as `HF_TOKEN` with `optional: true` — the pod starts
+normally even if the Secret does not exist.
 
 #### Tuning
 
@@ -109,6 +123,8 @@ curl http://localhost:8000/v1/completions \
 | Thread binding | `VLLM_CPU_OMP_THREADS_BIND` env | Match the CPU limit range, e.g. `0-7` for 8 CPUs (default: `0-3`) |
 | Memory cap | `--gpu-memory-utilization` in command | Increase toward `0.9` once stable (default: `0.5`) |
 | Model config | `deploy/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
+| Tokenizer | `--tokenizer` in command | Use any HuggingFace tokenizer; set `hf-token` Secret if private |
+| Model name | `--served-model-name` in command | Change the name clients use in the `model` field |
 | Plugin version | tarball URL in init container command | Replace `/heads/main` with a release tag or commit SHA for production |
 
 #### OpenShift / non-root clusters
