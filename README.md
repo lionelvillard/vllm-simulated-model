@@ -6,6 +6,18 @@ tokens and sleeps to reproduce a target model's latency profile, so you can
 benchmark and load-test vLLM's scheduler, batching, API server, and streaming
 on a laptop.
 
+## Table of Contents
+
+- [Install](#install)
+- [Run](#run)
+- [Send Request](#send-request)
+- [Latency models](#latency-models)
+  - [Linear model](#linear-model-type-linear)
+  - [Physics model](#physics-model-type-physics)
+- [Deploy on Kubernetes](#deploy-on-kubernetes)
+- [Comparison with related tools](#comparison-with-related-tools)
+- [Limitations](#limitations)
+
 ## Install
 
 > **Note:** vLLM must be compiled from source — `pip install vllm` does not
@@ -174,6 +186,57 @@ and tune against a short real benchmark run:
   "deterministic_length": true
 }
 ```
+
+## Deploy on Kubernetes
+
+The `deploy/` directory contains ready-to-use manifests for CPU-only linux/amd64 nodes.
+No custom image build is required — the plugin is injected at pod startup via an init container.
+
+**Prerequisites:** a cluster with at least one CPU node (4 CPU / 8 Gi), and internet egress so the init container can fetch the package from GitHub.
+
+### Apply
+
+```bash
+kubectl apply -n <namespace> -f deploy/
+```
+
+This creates:
+
+| Resource | Name | Purpose |
+|---|---|---|
+| ConfigMap | `vllm-sim-model-config` | Qwen 3.5 model config and latency coefficients |
+| Deployment | `vllm-sim` | Single-replica CPU vLLM server |
+| Service | `vllm-sim` | ClusterIP on port 8000 |
+
+The pod takes roughly 60–120 s to become ready: the init container installs the plugin (~10–30 s depending on network), then vLLM initializes the CPU engine.
+
+### Send a request
+
+```bash
+kubectl port-forward svc/vllm-sim 8000:8000
+curl http://localhost:8000/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "/model", "prompt": "hello", "max_tokens": 16}'
+```
+
+> **Note:** The manifests use `--tokenizer=gpt2`, which has no chat template. The `/v1/completions` endpoint works out of the box. For `/v1/chat/completions`, swap in a tokenizer that ships with a chat template (e.g. `--tokenizer=Qwen/Qwen3-8B`) by editing the `command` in `deploy/deployment.yaml`.
+
+### Tuning
+
+| What to change | Where | Guidance |
+|---|---|---|
+| KV cache size | `VLLM_CPU_KVCACHE_SPACE` env | Increase until ~80% of node memory used (default: 4 GB) |
+| Thread binding | `VLLM_CPU_OMP_THREADS_BIND` env | Match the CPU limit range, e.g. `0-7` for 8 CPUs (default: `0-3`) |
+| Memory cap | `--gpu-memory-utilization` in command | Increase toward `0.9` once stable (default: `0.5`) |
+| Model config | `deploy/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
+| Plugin version | tarball URL in init container command | Replace `/heads/main` with a release tag or commit SHA for production |
+
+### OpenShift / non-root clusters
+
+The manifests already include the adjustments required for clusters that enforce non-root security policies:
+
+- `HOME=/tmp` and `XDG_CACHE_HOME=/tmp/cache` — redirect vLLM's Triton and model-info caches away from read-only system paths
+- A `Memory`-backed emptyDir at `/dev/shm` (256 Mi) — vLLM's engine IPC requires more than the 64 Mi Kubernetes default
 
 ## Comparison with related tools
 
