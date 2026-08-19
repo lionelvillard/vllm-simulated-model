@@ -131,3 +131,76 @@ ClusterIP exposing port 8000 (OpenAI-compatible API endpoint).
 - `--gpu-memory-utilization`: set to avoid OOM; 0.5 is conservative
 - Pin the git ref in the init container command to a commit SHA before production use
 - Startup time includes pip install (~10–30s depending on network); factor into readiness probe delay
+
+## Post-Smoke-Test Amendments
+
+The following amendments were made after smoke testing against the actual vLLM v0.27.1 CPU image:
+
+### 1. Init Container Install Method: Git → Tarball URL
+
+**Change:**
+```
+# BEFORE
+git+https://github.com/vllm-project/vllm-simulated-model.git@main
+
+# AFTER
+https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz
+```
+
+**Rationale:** The git-based install URL requires git to be present in the init container and may trigger credential prompting in OpenShift environments. pip handles tarball downloads natively without requiring git, so there is no functional dependency. This also allows reverting the init container image back to the slimmer base image.
+
+**Additional Flag:** Added `--no-cache-dir` to pip install to reduce the init container's transient layer size and improve startup performance.
+
+**GitHub Org Correction:** Corrected to use the official fork `lionelvillard/vllm-simulated-model` pending contribution back to the main vLLM project organization.
+
+### 2. Init Container Image: Slim Confirmed
+
+**Change:** Confirmed use of `python:3.12-slim` (~50 MB vs. ~350 MB for `python:3.12`)
+
+**Rationale:** Since the install method no longer requires git, the full `python:3.12` image is unnecessary. The slim image includes pip and is sufficient for the tarball install.
+
+### 3. Removed Invalid `--device=cpu` Flag
+
+**Change:**
+```
+# BEFORE
+vllm serve /model --load-format dummy --device cpu --skip-tokenizer-init ...
+
+# AFTER
+vllm serve /model --load-format dummy --tokenizer=gpt2 ...
+```
+
+**Rationale:** The `--device cpu` flag is not valid in vLLM v0.27.1 CPU image and causes a parse error (`device_ids='cpu'`). The CPU image defaults to CPU mode; the flag is redundant and unsupported.
+
+### 4. Replaced `--skip-tokenizer-init` with `--tokenizer=gpt2`
+
+**Rationale:** `--skip-tokenizer-init` breaks all inference endpoints (`/v1/completions` and `/v1/chat/completions`) because vLLM still requires a tokenizer for message encoding/decoding. The gpt2 tokenizer is lightweight (~0.5 MB) and is downloaded from HuggingFace at startup. This approach balances startup latency with correctness and is operationally simpler than conditional initialization.
+
+### 5. Added OpenShift Non-Root SCC Cache Redirection
+
+**Change:** Added environment variables to the main container:
+```yaml
+- name: HOME
+  value: /tmp
+- name: XDG_CACHE_HOME
+  value: /tmp/cache
+```
+
+**Rationale:** OpenShift's restricted SCC (Security Context Constraint) for non-root pods prevents writes to `/.cache` and `/.triton` in the root filesystem. These environment variables redirect cache paths to `/tmp`, which is writable by non-root processes. This is required for vLLM to function in restricted OpenShift environments.
+
+### 6. Added Shared Memory emptyDir Volume
+
+**Change:** Added `/dev/shm` memory-backed emptyDir:
+```yaml
+- name: dshm
+  emptyDir:
+    medium: Memory
+    sizeLimit: 256Mi
+volumes:
+- name: dshm
+  emptyDir:
+    medium: Memory
+    sizeLimit: 256Mi
+```
+
+**Rationale:** vLLM v0.27.1 engine IPC requires greater than 160 Mi of shared memory. The Kubernetes default for `/dev/shm` is 64 Mi, which causes engine initialization failures. The 256 Mi allocation provides sufficient headroom for concurrent request handling.
