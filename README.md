@@ -6,7 +6,20 @@ tokens and sleeps to reproduce a target model's latency profile, so you can
 benchmark and load-test vLLM's scheduler, batching, API server, and streaming
 on a laptop.
 
-## Install
+## Table of Contents
+
+- [Get Started](#get-started)
+  - [Local](#local)
+  - [Kubernetes](#kubernetes)
+- [Latency models](#latency-models)
+  - [Linear model](#linear-model-type-linear)
+  - [Physics model](#physics-model-type-physics)
+- [Comparison with related tools](#comparison-with-related-tools)
+- [Limitations](#limitations)
+
+## Get Started
+
+### Local
 
 > **Note:** vLLM must be compiled from source — `pip install vllm` does not
 > support CPU-only / macOS environments. See the
@@ -23,30 +36,101 @@ uv pip install -e .
 The plugin registers itself via the `vllm.general_plugins` entry point; no code
 changes to vLLM are needed.
 
-## Run
+**Run the simulator:**
 
 ```bash
 vllm serve ./examples/sim-qwen-3.8-27b \
   --load-format dummy \
   --gpu-memory-utilization 0.2 \
-  --tokenizer Qwen/Qwen3.8-27B   # or --skip-tokenizer-init
+  --tokenizer Qwen/Qwen3-8B \
+  --served-model-name sim-qwen-3.8-27b
 ```
 
 Then benchmark it like any vLLM server (e.g. `vllm bench serve ...`). Measured
 TTFT/ITL reflect the configured latency model, while every other component is
 the real vLLM code path.
 
-## Send Request
+**Send a test request:**
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "./examples/sim-qwen-3.8-27b",
+    "model": "sim-qwen-3.8-27b",
     "messages": [{"role": "user", "content": "Hello, world!"}],
     "max_tokens": 32
   }'
 ```
+
+### Kubernetes
+
+The `deploy/` directory contains ready-to-use manifests for CPU-only linux/amd64 nodes.
+No custom image build is required — the plugin is injected at pod startup via an init
+container.
+
+**Prerequisites:** a cluster with at least one CPU node (4 CPU / 8 Gi) and internet
+egress so the init container can fetch the package from GitHub.
+
+If you need a private HuggingFace tokenizer, create the Secret before deploying
+(the deployment has `optional: true` so it starts fine without it):
+
+```bash
+kubectl create secret generic hf-token \
+  --from-literal=token=<your-hf-token> \
+  -n <namespace>
+```
+
+**Run the simulator:**
+
+```bash
+kubectl apply -n <namespace> -f deploy/
+```
+
+This creates:
+
+| Resource | Name | Purpose |
+|---|---|---|
+| ConfigMap | `vllm-sim-model-config` | Qwen 3.5 model config and latency coefficients |
+| Deployment | `vllm-sim` | Single-replica CPU vLLM server |
+| Service | `vllm-sim` | ClusterIP on port 8000 |
+
+The pod takes roughly 60–120 s to become ready: the init container installs the plugin
+(~10–30 s depending on network), then vLLM initializes the CPU engine.
+
+**Send a test request:**
+
+```bash
+kubectl port-forward svc/vllm-sim 8000:8000
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sim-qwen-3.8-27b",
+    "messages": [{"role": "user", "content": "Hello, world!"}],
+    "max_tokens": 16
+  }'
+```
+
+#### Tuning
+
+| What to change | Where | Guidance |
+|---|---|---|
+| KV cache size | `VLLM_CPU_KVCACHE_SPACE` env | Increase until ~80% of node memory used (default: 4 GB) |
+| Thread binding | `VLLM_CPU_OMP_THREADS_BIND` env | Match the CPU limit range, e.g. `0-7` for 8 CPUs (default: `0-3`) |
+| Memory cap | `--gpu-memory-utilization` in command | Increase toward `0.9` once stable (default: `0.5`) |
+| Model config | `deploy/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
+| Tokenizer | `--tokenizer` in command | Use any HuggingFace tokenizer; set `hf-token` Secret if private |
+| Model name | `--served-model-name` in command | Change the name clients use in the `model` field |
+| Plugin version | tarball URL in init container command | Replace `/heads/main` with a release tag or commit SHA for production |
+
+#### OpenShift / non-root clusters
+
+The manifests already include the adjustments required for clusters that enforce non-root
+security policies:
+
+- `HOME=/tmp` and `XDG_CACHE_HOME=/tmp/cache` — redirect vLLM's Triton and model-info
+  caches away from read-only system paths
+- A `Memory`-backed emptyDir at `/dev/shm` (256 Mi) — vLLM's engine IPC requires more
+  than the 64 Mi Kubernetes default
 
 ## Latency models
 
