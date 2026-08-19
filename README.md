@@ -102,7 +102,7 @@ All coefficients must be ≥ 0.
 ### Physics model (`type: "physics"`)
 
 A hardware-aware roofline model adapted from
-[BLISS](https://github.com/IBM/bliss). It derives step time from first
+[BLIS](https://github.com/inference-sim/inference-sim). It derives step time from first
 principles — FLOPs, HBM bandwidth, and model architecture — rather than fitted
 coefficients:
 
