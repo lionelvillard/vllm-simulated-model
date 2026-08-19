@@ -296,3 +296,77 @@ actually work end to end.
 - **`vllm bench serve` field names** may vary across vLLM versions; `compare.py`
   reads them defensively and fails loudly with the offending JSON if a field is
   missing.
+
+## 11. Post-Smoke-Test Amendments
+
+> **Status: NOT YET RUN.** The manual smoke test (spec §9) requires the H100
+> OpenShift cluster and has **not** been executed in the development
+> environment where this feature was built. This section is a template: the
+> operator who runs the first real deployment fills in the checklist below and
+> records any amendments. Do not treat the placeholders as observed results.
+
+### Smoke-test procedure
+
+Run these from the repo (or worktree) root, with `oc login` already pointing at
+the target H100 namespace:
+
+1. **Generate the sim config from the real model** (overwrites the committed
+   fixture-derived placeholder in `deploy/eval/sim-configmap.yaml`):
+
+   ```bash
+   .venv/bin/python -m evaluation.gen_sim_config \
+     --model Qwen/Qwen3-32B \
+     --out deploy/eval/sim-configmap.yaml
+   ```
+
+2. **Deploy both servers and the config:**
+
+   ```bash
+   oc apply -f deploy/eval/
+   oc get pods -w        # wait for vllm-real and vllm-sim pods to be Ready
+   ```
+
+   The real server downloads ~64 GB of weights on first start; readiness can
+   take many minutes (probe `initialDelaySeconds` is 600).
+
+3. **Run the sweep** (local port-forward driver):
+
+   ```bash
+   evaluation/run_eval.sh          # writes eval-out/report.md and report.json
+   ```
+
+   Or run it in-cluster instead:
+
+   ```bash
+   oc apply -f deploy/eval/benchmark-job.yaml
+   oc logs -f job/vllm-benchmark
+   ```
+
+4. **Confirm the report** — `eval-out/report.md` exists, every sweep point has
+   non-empty metrics, and an overall median MAPE is printed.
+
+### Amendment checklist (operator fills in)
+
+Record the actual value or "no change" for each; anything that differs from the
+committed manifests/scripts becomes a follow-up commit.
+
+- [ ] **Real image tag** — did `vllm/vllm-openai:latest` serve Qwen3-32B, or was
+      a pinned tag required? Value: _____
+- [ ] **GPU/type** — confirmed 1× H100 SXM5 (peak_tflops 989, hbm_gbps 3350)?
+      If the cluster GPU differs, update `H100_SXM5` in `gen_sim_config.py` and
+      regenerate. Value: _____
+- [ ] **Resource sizes** — was the 80Gi weight `emptyDir` and any memory/CPU
+      request sufficient? Value: _____
+- [ ] **Probe delays** — did `initialDelaySeconds: 600` cover download + load,
+      or did the real pod get killed before Ready? Value: _____
+- [ ] **`/dev/shm`** — was 256Mi enough, or did loading need more? Value: _____
+- [ ] **`vllm bench serve` field/flag drift** — did any `--percentile-metrics`,
+      `--metric-percentiles`, dataset flag, or result-JSON field name differ from
+      what `run_eval.py`/`compare.py` expect? If a field was missing, `compare.py`
+      fails loudly naming the key — record it here. Value: _____
+- [ ] **Served-model-name parity** — did both servers answer to `qwen3-32b`?
+      Value: _____
+- [ ] **Overall median MAPE (baseline `beta=[1,1,0]`)** — record it as the
+      pre-tuning baseline; non-zero is expected (spec §10). Value: _____
+- [ ] **Per-metric signed error** — note TTFT and ITL sign/magnitude to direct
+      the first `beta` tuning pass (positive ms = sim slower). Value: _____
