@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+from dataclasses import dataclass
+from statistics import median
 
 from evaluation.metrics import METRICS, MetricComparison
 
@@ -27,3 +29,76 @@ def compare_point(real: dict, sim: dict) -> list[MetricComparison]:
             )
         )
     return comps
+
+
+@dataclass(frozen=True)
+class PointResult:
+    label: str
+    params: dict
+    comparisons: list  # list[MetricComparison]
+
+
+def aggregate(points) -> dict:
+    per_metric: dict[str, list[float]] = {}
+    for p in points:
+        for c in p.comparisons:
+            per_metric.setdefault(c.name, []).append(c.ape)
+    agg = {name: median(vals) for name, vals in per_metric.items()}
+    agg["overall"] = median(agg.values()) if agg else 0.0
+    return agg
+
+
+def _signed_hint(c) -> str:
+    if c.unit != "ms":
+        direction = "sim higher" if c.signed_pct > 0 else "sim lower"
+        return f"{direction}"
+    if c.signed_pct > 0:
+        return "sim slower"
+    return "sim faster"
+
+
+def render_markdown(points, agg) -> str:
+    lines: list[str] = ["# Sim-vs-Real Evaluation Report", ""]
+    for p in points:
+        lines.append(f"### {p.label}")
+        lines.append("")
+        lines.append("| Metric | Real | Sim | APE | Signed |")
+        lines.append("|---|--:|--:|--:|:--|")
+        for c in p.comparisons:
+            lines.append(
+                f"| {c.name} ({c.unit}) | {c.real:.2f} | {c.sim:.2f} "
+                f"| {c.ape * 100:.1f}% | {c.signed_pct:+.1f}% {_signed_hint(c)} |"
+            )
+        lines.append("")
+    lines.append("## Aggregate (median APE across points)")
+    lines.append("")
+    lines.append("| Metric | Median APE |")
+    lines.append("|---|--:|")
+    for name, val in agg.items():
+        if name == "overall":
+            continue
+        lines.append(f"| {name} | {val * 100:.1f}% |")
+    lines.append("")
+    lines.append(f"**Overall median MAPE: {agg['overall'] * 100:.1f}%**")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_json(points, agg) -> dict:
+    return {
+        "aggregate": agg,
+        "points": [
+            {
+                "label": p.label,
+                "params": p.params,
+                "metrics": [
+                    {
+                        "name": c.name, "unit": c.unit, "real": c.real,
+                        "sim": c.sim, "ape": c.ape, "signed_pct": c.signed_pct,
+                    }
+                    for c in p.comparisons
+                ],
+            }
+            for p in points
+        ],
+    }

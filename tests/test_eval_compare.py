@@ -51,3 +51,41 @@ def test_compare_point_missing_key_raises():
     del sim["mean_ttft_ms"]
     with pytest.raises(KeyError):
         compare_point(real, sim)
+
+
+from evaluation.compare import PointResult, aggregate, render_markdown, render_json
+
+
+def _point(label):
+    real = load_result(FIX / "real-c16.json")
+    sim = load_result(FIX / "sim-c16.json")
+    return PointResult(label=label, params={"isl": 1024, "osl": 128, "c": 16},
+                       comparisons=compare_point(real, sim))
+
+
+def test_aggregate_medians():
+    pts = [_point("a"), _point("b")]
+    agg = aggregate(pts)
+    # identical points -> median equals the single-point APE
+    assert agg["TTFT mean"] == pytest.approx(0.10)
+    assert "overall" in agg
+    assert agg["overall"] >= 0.0
+
+
+def test_render_markdown_has_tables_and_signed_hint():
+    pts = [_point("ISL=1024 OSL=128 c=16")]
+    md = render_markdown(pts, aggregate(pts))
+    assert "ISL=1024 OSL=128 c=16" in md
+    assert "| TTFT mean" in md
+    assert "%" in md
+    assert "Aggregate" in md
+    # signed hint mentions direction for TTFT/ITL
+    assert "sim slower" in md or "sim faster" in md
+
+
+def test_render_json_roundtrips():
+    pts = [_point("p")]
+    out = render_json(pts, aggregate(pts))
+    assert out["aggregate"]["overall"] >= 0.0
+    assert out["points"][0]["label"] == "p"
+    assert out["points"][0]["metrics"][0]["ape"] >= 0.0
