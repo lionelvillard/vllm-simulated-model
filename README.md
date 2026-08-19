@@ -175,6 +175,36 @@ and tune against a short real benchmark run:
 }
 ```
 
+## Comparison with related tools
+
+| | **vllm-simulated-model** | **[BLIS](https://github.com/inference-sim/inference-sim)** | **[llm-d-inference-sim](https://github.com/llm-d/llm-d-inference-sim)** |
+|---|---|---|---|
+| **What runs** | Real vLLM serving stack | Discrete-event cluster simulator (Go) | Fake HTTP server (no vLLM) |
+| **Model forward pass** | Replaced with sleep | Replaced with roofline math | Replaced with sleep + jitter |
+| **Scheduler / batching** | Real vLLM code | Simulated | Not simulated |
+| **API surface** | Real vLLM OpenAI API | None (JSON metrics output) | Mimicked OpenAI API |
+| **Interface** | `vllm serve` CLI | `blis run` CLI + YAML specs | CLI / Docker / Helm |
+| **Inputs** | Model config.json + hardware spec | HF model ID + hardware + workload YAML | Model name + latency config YAML |
+| **Outputs** | Live benchmark metrics (TTFT, ITL, throughput) | Capacity planning metrics (p99 TTFT/ITL, saturation) | Streaming responses + Prometheus metrics |
+| **Fidelity to real vLLM** | High — real code path | Low — reimplemented model | Low — API shape only |
+| **Primary use case** | High-fidelity behavior without a GPU | Cluster capacity planning and policy research | llm-d control-plane / infra development |
+
+### The real question: how much fidelity do you need?
+
+All three tools remove the GPU. They differ in how much *real vLLM behavior* they preserve, and that fidelity is not free — it is the axis to decide on.
+
+- **vllm-simulated-model** runs the actual vLLM scheduler, batching, streaming, and API server; only the model forward pass is replaced with a sleep. So the emergent behavior you observe — batch composition, preemption, queueing, prefix caching, chunked prefill — is vLLM's real behavior, not a model of it. Use it when the *thing under test is vLLM itself* (or something whose correctness depends on vLLM's exact behavior).
+- **BLIS** reimplements the cluster (KV cache, preemption, autoscaling) as a discrete-event model. It is faster and can explore hardware you don't own, but it cannot reproduce a vLLM-specific behavior or regression, because no vLLM code runs.
+- **llm-d-inference-sim** reproduces vLLM's API surface and metrics but no scheduling logic. It is ideal as a cheap pod stand-in.
+
+It all comes down to *which metrics have to be simulated accurately* for the experiment to be meaningful. If the metrics you care about only need realistic latency and load behavior, a lower-fidelity stand-in like llm-d-inference-sim, or a capacity model like BLIS, is usually the better fit. Reach for vllm-simulated-model when those metrics depend on vLLM's real scheduling and batching, not just on plausible-looking latency.
+
+### Maintenance
+
+Because this is an out-of-tree vLLM plugin rather than a reimplementation, it inherits vLLM's behavior for free and stays correct as vLLM evolves. When vLLM changes its scheduler, batching, or API, the simulation reflects that change automatically with no update here — the plugin only needs attention when the narrow contract it hooks into (the model-runner / forward-pass interface) changes. BLIS and llm-d-inference-sim, being separate implementations, must be actively tracked against vLLM to stay representative.
+
+vllm-simulated-model's physics latency model is adapted from BLIS's roofline math, so predictions from the two tools are comparable when given the same hardware spec.
+
 ## Limitations
 
 - Generated text is random; only timing and stack behavior are meaningful.
