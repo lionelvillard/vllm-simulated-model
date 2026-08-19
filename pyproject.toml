@@ -18,5 +18,8 @@ simulated_model = "vllm_simulated:register"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 88
