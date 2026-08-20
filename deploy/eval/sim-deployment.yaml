@@ -36,6 +36,7 @@ spec:
         - /model
         args:
         - --load-format=dummy
+        - --max-model-len=16384
         - --tokenizer
         - Qwen/Qwen3-32B
         - --served-model-name

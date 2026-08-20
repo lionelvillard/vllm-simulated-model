@@ -1,18 +1,18 @@
 {
   "aggregate": {
-    "TTFT mean": 0.13882253612178633,
-    "TTFT median": 0.3962106478808533,
-    "TTFT p90": 0.44384521544194666,
-    "TTFT p99": 0.47443646256251376,
-    "TPOT mean": 0.3633006133138994,
-    "ITL mean": 0.3633004972317869,
-    "ITL median": 0.48816684153267365,
-    "ITL p99": 0.3075207692412158,
-    "E2E mean": 0.5007234921737167,
-    "E2E p99": 0.8777241778764564,
-    "Output throughput": 0.3338048603305773,
-    "Request throughput": 0.3338048603305773,
-    "overall": 0.3797556305973764
+    "TTFT mean": Infinity,
+    "TTFT median": Infinity,
+    "TTFT p90": Infinity,
+    "TTFT p99": Infinity,
+    "TPOT mean": Infinity,
+    "ITL mean": Infinity,
+    "ITL median": Infinity,
+    "ITL p99": Infinity,
+    "E2E mean": Infinity,
+    "E2E p99": Infinity,
+    "Output throughput": Infinity,
+    "Request throughput": Infinity,
+    "overall": Infinity
   },
   "points": [
     {
@@ -26,98 +26,98 @@
         {
           "name": "TTFT mean",
           "unit": "ms",
-          "real": 207.32611203220586,
-          "sim": 175.77905597090648,
-          "ape": 0.15216151864362787,
-          "signed_pct": -15.216151864362788
+          "real": 215.01559506214107,
+          "sim": 523.6294756473545,
+          "ape": 1.435309287663631,
+          "signed_pct": 143.5309287663631
         },
         {
           "name": "TTFT median",
           "unit": "ms",
-          "real": 207.71706249797717,
-          "sim": 175.69877100322628,
-          "ape": 0.15414377186786324,
-          "signed_pct": -15.414377186786323
+          "real": 216.2451459953445,
+          "sim": 268.3137920103036,
+          "ape": 0.24078527069495498,
+          "signed_pct": 24.078527069495497
         },
         {
           "name": "TTFT p90",
           "unit": "ms",
-          "real": 221.1534042027779,
-          "sim": 186.31712910282658,
-          "ape": 0.15752086306575486,
-          "signed_pct": -15.752086306575485
+          "real": 229.2825917043956,
+          "sim": 1342.218125006184,
+          "ape": 4.853990549516508,
+          "signed_pct": 485.39905495165084
         },
         {
           "name": "TTFT p99",
           "unit": "ms",
-          "real": 232.64644950424554,
-          "sim": 188.82662581323532,
-          "ape": 0.18835371777384702,
-          "signed_pct": -18.8353717773847
+          "real": 243.90107153682038,
+          "sim": 1928.0366962018884,
+          "ape": 6.904994775354332,
+          "signed_pct": 690.4994775354332
         },
         {
           "name": "TPOT mean",
           "unit": "ms",
-          "real": 23.88220136169803,
-          "sim": 21.013272873765025,
-          "ape": 0.12012830996953888,
-          "signed_pct": -12.012830996953888
+          "real": 23.668091709154627,
+          "sim": 129.87394899872496,
+          "ape": 4.487301240618852,
+          "signed_pct": 448.73012406188525
         },
         {
           "name": "ITL mean",
           "unit": "ms",
-          "real": 23.88220408980258,
-          "sim": 21.013276216791834,
-          "ape": 0.12012827049894217,
-          "signed_pct": -12.012827049894218
+          "real": 23.66809500097044,
+          "sim": 129.87395396190382,
+          "ape": 4.487300687130871,
+          "signed_pct": 448.73006871308706
         },
         {
           "name": "ITL median",
           "unit": "ms",
-          "real": 23.97556299547432,
-          "sim": 20.99945800000569,
-          "ape": 0.12413076581477597,
-          "signed_pct": -12.413076581477597
+          "real": 23.79908299917588,
+          "sim": 129.77754199528135,
+          "ape": 4.453048001882061,
+          "signed_pct": 445.30480018820606
         },
         {
           "name": "ITL p99",
           "unit": "ms",
-          "real": 30.619757171371013,
-          "sim": 28.031924070528472,
-          "ape": 0.08451514119981736,
-          "signed_pct": -8.451514119981736
+          "real": 29.699665537045796,
+          "sim": 153.7693898839642,
+          "ape": 4.17747884036473,
+          "signed_pct": 417.74788403647295
         },
         {
           "name": "E2E mean",
           "unit": "ms",
-          "real": 3240.3656849678555,
-          "sim": 2844.4647109390644,
-          "ape": 0.12217786895639171,
-          "signed_pct": -12.217786895639172
+          "real": 3220.8632421247785,
+          "sim": 17017.62099848542,
+          "ape": 4.28355900862746,
+          "signed_pct": 428.355900862746
         },
         {
           "name": "E2E p99",
           "unit": "ms",
-          "real": 3265.185972496256,
-          "sim": 2893.7782639774377,
-          "ape": 0.11374779618904055,
-          "signed_pct": -11.374779618904055
+          "real": 3249.716950509028,
+          "sim": 18393.073546202504,
+          "ape": 4.659900177866708,
+          "signed_pct": 465.9900177866708
         },
         {
           "name": "Output throughput",
           "unit": "tok/s",
-          "real": 39.49251729605714,
-          "sim": 44.98842830295253,
-          "ape": 0.13916335000109228,
-          "signed_pct": 13.916335000109228
+          "real": 39.7310192698476,
+          "sim": 7.030251445193403,
+          "ape": 0.8230538361614913,
+          "signed_pct": -82.30538361614913
         },
         {
           "name": "Request throughput",
           "unit": "req/s",
-          "real": 0.3085352913754464,
-          "sim": 0.3514720961168166,
-          "ape": 0.13916335000109228,
-          "signed_pct": 13.916335000109228
+          "real": 0.3103985880456844,
+          "sim": 0.05492383941557346,
+          "ape": 0.8230538361614913,
+          "signed_pct": -82.30538361614913
         }
       ]
     },
@@ -132,98 +132,98 @@
         {
           "name": "TTFT mean",
           "unit": "ms",
-          "real": 1149.5162070270908,
-          "sim": 1005.2708284486016,
-          "ape": 0.12548355359994479,
-          "signed_pct": -12.548355359994478
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT median",
           "unit": "ms",
-          "real": 1155.9683960003895,
-          "sim": 418.13975050172303,
-          "ape": 0.6382775238938434,
-          "signed_pct": -63.827752389384344
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT p90",
           "unit": "ms",
-          "real": 1708.4613330007414,
-          "sim": 4329.664979006338,
-          "ape": 1.534248153806159,
-          "signed_pct": 153.4248153806159
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT p99",
           "unit": "ms",
-          "real": 1829.8706213543483,
-          "sim": 5234.408327142592,
-          "ape": 1.8605346553235722,
-          "signed_pct": 186.05346553235722
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TPOT mean",
           "unit": "ms",
-          "real": 29.27085222243819,
-          "sim": 44.289221948851605,
-          "ape": 0.5130827627526596,
-          "signed_pct": 51.30827627526596
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL mean",
           "unit": "ms",
-          "real": 29.27085432430864,
-          "sim": 44.28922373554499,
-          "ape": 0.513082715141799,
-          "signed_pct": 51.30827151417991
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL median",
           "unit": "ms",
-          "real": 25.339916501252446,
-          "sim": 38.86552050244063,
-          "ape": 0.5337667154712081,
-          "signed_pct": 53.376671547120814
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL p99",
           "unit": "ms",
-          "real": 228.37387201056077,
-          "sim": 108.29127274511848,
-          "ape": 0.5258158396503838,
-          "signed_pct": -52.581583965038384
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "E2E mean",
           "unit": "ms",
-          "real": 4866.914439276741,
-          "sim": 6630.002015952755,
-          "ape": 0.36225982574249266,
-          "signed_pct": 36.225982574249265
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "E2E p99",
           "unit": "ms",
-          "real": 5086.573803498322,
-          "sim": 10968.522258548908,
-          "ape": 1.156367465071526,
-          "signed_pct": 115.63674650715261
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "Output throughput",
           "unit": "tok/s",
-          "real": 420.52218616638146,
-          "sim": 302.25227012871,
-          "ape": 0.2812453657103301,
-          "signed_pct": -28.12453657103301
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "Request throughput",
           "unit": "req/s",
-          "real": 3.285329579424855,
-          "sim": 2.361345860380547,
-          "ape": 0.2812453657103301,
-          "signed_pct": -28.12453657103301
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         }
       ]
     },
@@ -238,98 +238,98 @@
         {
           "name": "TTFT mean",
           "unit": "ms",
-          "real": 10880.61909742973,
-          "sim": 19834.427596763617,
-          "ape": 0.822913514309953,
-          "signed_pct": 82.29135143099529
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT median",
           "unit": "ms",
-          "real": 12323.038375005126,
-          "sim": 21903.0080415032,
-          "ape": 0.7774032162335198,
-          "signed_pct": 77.74032162335199
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT p90",
           "unit": "ms",
-          "real": 13252.527908302727,
-          "sim": 22929.120483605948,
-          "ape": 0.7301695678181385,
-          "signed_pct": 73.01695678181385
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT p99",
           "unit": "ms",
-          "real": 13705.706125990691,
-          "sim": 24129.15888511735,
-          "ape": 0.7605192073511805,
-          "signed_pct": 76.05192073511805
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TPOT mean",
           "unit": "ms",
-          "real": 36.978529345596925,
-          "sim": 44.87412812783054,
-          "ape": 0.21351846387513923,
-          "signed_pct": 21.351846387513923
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL mean",
           "unit": "ms",
-          "real": 36.97853719712728,
-          "sim": 44.874130831294146,
-          "ape": 0.21351827932177486,
-          "signed_pct": 21.351827932177486
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL median",
           "unit": "ms",
-          "real": 26.755979008157738,
-          "sim": 38.59729150281055,
-          "ape": 0.4425669675941391,
-          "signed_pct": 44.25669675941391
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL p99",
           "unit": "ms",
-          "real": 618.4713894980073,
-          "sim": 138.21953683262103,
-          "ape": 0.7765142588975551,
-          "signed_pct": -77.65142588975552
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "E2E mean",
           "unit": "ms",
-          "real": 15576.892324320539,
-          "sim": 25533.441868998096,
-          "ape": 0.6391871586049408,
-          "signed_pct": 63.91871586049408
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "E2E p99",
           "unit": "ms",
-          "real": 18005.990324351733,
-          "sim": 29875.262205368046,
-          "ape": 0.6591846195187624,
-          "signed_pct": 65.91846195187624
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "Output throughput",
           "unit": "tok/s",
-          "real": 495.4985921635054,
-          "sim": 304.05559822321095,
-          "ape": 0.38636435495082455,
-          "signed_pct": -38.63643549508245
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "Request throughput",
           "unit": "req/s",
-          "real": 3.871082751277386,
-          "sim": 2.3754343611188355,
-          "ape": 0.38636435495082455,
-          "signed_pct": -38.63643549508245
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         }
       ]
     },
@@ -344,98 +344,98 @@
         {
           "name": "TTFT mean",
           "unit": "ms",
-          "real": 411.47877980102976,
-          "sim": 430.54788869545746,
-          "ape": 0.0463428731456056,
-          "signed_pct": 4.634287314560559
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT median",
           "unit": "ms",
-          "real": 374.6420834941091,
-          "sim": 401.08933350711595,
-          "ape": 0.07059337746135161,
-          "signed_pct": 7.059337746135161
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT p90",
           "unit": "ms",
-          "real": 648.1377085001441,
-          "sim": 750.1414999933331,
-          "ape": 0.1573798132024074,
-          "signed_pct": 15.73798132024074
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TTFT p99",
           "unit": "ms",
-          "real": 888.7608661461854,
-          "sim": 944.0911876547034,
-          "ape": 0.06225557809317078,
-          "signed_pct": 6.2255578093170785
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "TPOT mean",
           "unit": "ms",
-          "real": 27.18052945199182,
-          "sim": 61.61597942255002,
-          "ape": 1.266916085331617,
-          "signed_pct": 126.6916085331617
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL mean",
           "unit": "ms",
-          "real": 27.180530678107715,
-          "sim": 61.615980171235805,
-          "ape": 1.2669160106157815,
-          "signed_pct": 126.69160106157815
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL median",
           "unit": "ms",
-          "real": 24.661874493176583,
-          "sim": 60.66724999982398,
-          "ape": 1.4599610226955506,
-          "signed_pct": 145.99610226955505
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "ITL p99",
           "unit": "ms",
-          "real": 163.91958875174168,
-          "sim": 178.5454286103777,
-          "ape": 0.08922569883204776,
-          "signed_pct": 8.922569883204776
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "E2E mean",
           "unit": "ms",
-          "real": 7342.513790058945,
-          "sim": 16142.622641445712,
-          "ape": 1.1985144465511615,
-          "signed_pct": 119.85144465511614
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "E2E p99",
           "unit": "ms",
-          "real": 7868.315595648164,
-          "sim": 16494.064648402855,
-          "ape": 1.0962637362341503,
-          "signed_pct": 109.62637362341503
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "Output throughput",
           "unit": "tok/s",
-          "real": 1113.543075432411,
-          "sim": 498.9020346670888,
-          "ape": 0.5519688050923802,
-          "signed_pct": -55.19688050923802
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         },
         {
           "name": "Request throughput",
           "unit": "req/s",
-          "real": 4.349777638407855,
-          "sim": 1.9488360729183156,
-          "ape": 0.5519688050923802,
-          "signed_pct": -55.19688050923802
+          "real": 0.0,
+          "sim": 0.0,
+          "ape": Infinity,
+          "signed_pct": Infinity
         }
       ]
     }

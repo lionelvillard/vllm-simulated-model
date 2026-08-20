@@ -11,5 +11,5 @@ data:
     : 40960,\n  \"eos_token_id\": 151645,\n  \"torch_dtype\": \"bfloat16\",\n  \"\
     latency\": {\n    \"type\": \"physics\",\n    \"hardware\": {\n      \"peak_tflops\"\
     : 989.0,\n      \"hbm_gbps\": 3350.0,\n      \"weight_dtype\": \"bfloat16\"\n\
-    \    },\n    \"beta\": [\n      1.0,\n      1.0,\n      0.0\n    ],\n    \"tp\"\
+    \    },\n    \"beta\": [\n    0.152128,\n      0.0,\n      126.024825\n    ],\n    \"tp\"\
     : 1,\n    \"deterministic_length\": true\n  }\n}"
