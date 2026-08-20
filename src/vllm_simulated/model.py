@@ -1,4 +1,7 @@
+import json
+import os
 import time
+from pathlib import Path
 
 import torch
 from torch import nn
@@ -11,6 +14,21 @@ from vllm_simulated.latency import (
     batch_shape_from_attn_metadata,
     build_latency_model,
 )
+
+
+def _load_latency_from_file(config_path: str, hf_config) -> "LatencyModel":
+    with open(config_path) as f:
+        data = json.load(f)
+    return build_latency_model(data["latency"], hf_config=hf_config)
+
+
+def _bootstrap_config_file(config_path: str, hf_config) -> None:
+    p = Path(config_path)
+    if p.exists():
+        return
+    p.parent.mkdir(parents=True, exist_ok=True)
+    latency = getattr(hf_config, "latency", {})
+    p.write_text(json.dumps({"latency": dict(latency)}))
 
 
 def _build_latency_model(hf_config) -> LatencyModel:
@@ -57,6 +75,11 @@ class SimulatedForCausalLM(nn.Module):
         )
 
         self.latency = _build_latency_model(hf_config)
+        self._hf_config = hf_config
+        self._config_path: str | None = os.environ.get("VLLM_SIM_CONFIG_PATH")
+        self._config_mtime: int = 0
+        if self._config_path:
+            _bootstrap_config_file(self._config_path, hf_config)
         self.deterministic_length = getattr(hf_config, "latency", {}).get(
             "deterministic_length", True
         )
@@ -78,6 +101,14 @@ class SimulatedForCausalLM(nn.Module):
         intermediate_tensors=None,
         inputs_embeds: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        if self._config_path:
+            mtime = os.stat(self._config_path).st_mtime_ns
+            if mtime != self._config_mtime:
+                self.latency = _load_latency_from_file(
+                    self._config_path, self._hf_config
+                )
+                self._config_mtime = mtime
+
         if inputs_embeds is not None:
             num_tokens = inputs_embeds.shape[0]
         else:
