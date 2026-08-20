@@ -6,10 +6,11 @@ Deployment configurations for simulated vLLM models. Each model directory contai
 
 ```
 models/
-  <model>/                          # e.g. qwen3-32b, qwen3-a22b
+  <model>/                          # e.g. qwen3-32b
     config.json                     # Real model config from HuggingFace (no latency block)
     README.md                       # Model overview and deployment inventory
     deployments/
+      README.md                     # Deployment inventory for this model
       <hardware>/                   # e.g. h100-sxm5, cpu
         README.md                   # Hardware overview, latency table, deploy instructions
         standalone/                 # Single-instance (non-disaggregated) deployment
@@ -61,7 +62,6 @@ The deployment directory is named after the hardware only (no TP suffix — tens
 | Directory | Model | Parameters | Architecture |
 |-----------|-------|------------|--------------|
 | [qwen3-32b](qwen3-32b/) | Qwen/Qwen3-32B | 32B | Dense |
-| [qwen3-a22b](qwen3-a22b/) | Qwen/Qwen3-235B-A22B | 235B total / 22B active | MoE |
 
 ## Adding a New Model
 
