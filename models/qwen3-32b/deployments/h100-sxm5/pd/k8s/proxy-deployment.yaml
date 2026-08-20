@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-pd-proxy
+  labels:
+    app: vllm-pd-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-pd-proxy
+  template:
+    metadata:
+      labels:
+        app: vllm-pd-proxy
+    spec:
+      # Wait for both vLLM instances to become ready before starting the proxy.
+      # The disagg_proxy_demo.py validates the model on both backends at startup.
+      initContainers:
+      - name: wait-for-prefill
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until wget -qO- http://vllm-prefill:8000/health > /dev/null 2>&1; do
+            echo "waiting for prefill..."; sleep 5
+          done
+      - name: wait-for-decode
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until wget -qO- http://vllm-decode:8000/health > /dev/null 2>&1; do
+            echo "waiting for decode..."; sleep 5
+          done
+      containers:
+      - name: proxy
+        image: vllm/vllm-openai:latest
+        command:
+        - python3
+        - /vllm-workspace/examples/disaggregated/disaggregated_serving/disagg_proxy_demo.py
+        args:
+        - --model
+        - qwen3-32b
+        - --prefill
+        - vllm-prefill:8000
+        - --decode
+        - vllm-decode:8000
+        - --port
+        - "8000"
+        env:
+        - name: HOME
+          value: /tmp
+        ports:
+        - containerPort: 8000
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 2Gi
