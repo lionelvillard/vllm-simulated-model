@@ -16,7 +16,7 @@ from vllm_simulated.latency import (
 )
 
 
-def _load_latency_from_file(config_path: str, hf_config) -> "LatencyModel":
+def _load_latency_from_file(config_path: str, hf_config) -> LatencyModel:
     with open(config_path) as f:
         data = json.load(f)
     return build_latency_model(data["latency"], hf_config=hf_config)
@@ -27,8 +27,10 @@ def _bootstrap_config_file(config_path: str, hf_config) -> None:
     if p.exists():
         return
     p.parent.mkdir(parents=True, exist_ok=True)
-    latency = getattr(hf_config, "latency", {})
-    p.write_text(json.dumps({"latency": dict(latency)}))
+    latency = hf_config.latency
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"latency": dict(latency)}))
+    os.replace(tmp, p)
 
 
 def _build_latency_model(hf_config) -> LatencyModel:

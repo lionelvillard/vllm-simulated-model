@@ -1,11 +1,9 @@
 import json
-import os
 import types
 from pathlib import Path
 
 import pytest
 
-from vllm_simulated.latency import build_latency_model
 from vllm_simulated.model import _bootstrap_config_file, _load_latency_from_file
 
 
@@ -49,7 +47,7 @@ def test_load_latency_from_file_returns_model_with_correct_beta(config_path):
     assert tuple(model.config.beta) == (0.5, 0.8, 10.0)
 
 
-def test_bootstrap_config_file_creates_file_if_absent(tmp_path, config_path):
+def test_bootstrap_config_file_creates_file_if_absent(config_path):
     hf = _make_hf_config([1.0, 1.0, 0.0])
     _bootstrap_config_file(config_path, hf)
 
