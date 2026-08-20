@@ -19,6 +19,7 @@ from evaluation.run_eval import (
     SweepPoint,
     _detect_model,
     _run_bench,
+    _warmup_argv,
     bench_argv,
 )
 
@@ -214,7 +215,17 @@ def tune(
     print(f"real: {real_url}  model={real_model}")
     print(f"sim:  {sim_url}  model={sim_model}")
 
-    # Run real benchmark once
+    # Run real benchmark once (warmup first, per spec §6)
+    _run_bench(
+        _warmup_argv(
+            _TUNING_POINT,
+            base_url=real_url,
+            model=real_model,
+            tokenizer=tokenizer,
+            result_dir=str(out),
+            seed=seed,
+        )
+    )
     real_fname = "real.json"
     _run_bench(
         bench_argv(

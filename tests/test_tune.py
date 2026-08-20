@@ -60,6 +60,27 @@ def test_coordinate_search_finds_minimum(tmp_path):
     assert result["beta"][2] == pytest.approx(8.0, abs=0.5)
 
 
+def test_coordinate_search_phase3_production_path(tmp_path):
+    """Phase 3 without the test override runs through aggregate([pt])['overall']."""
+    from evaluation.tune import _coordinate_search, _make_bench_sim
+
+    # bench_sim returns 2 comparisons; phase 3 in production builds a PointResult and aggregates
+    def fake_bench_sim_for_production(beta):
+        # Return both TTFT mean and ITL mean so aggregate has something to work with
+        b_pf, b_dc, b_base = beta
+        return _make_comparison(abs(b_pf - 0.3), abs(b_dc - 0.7))
+
+    result = _coordinate_search(
+        bench_sim=fake_bench_sim_for_production,
+        # No bench_sim_overall — forces production path in phase 3
+    )
+
+    # Just verify it ran to completion and returned a plausible triple
+    assert len(result["beta"]) == 3
+    assert all(isinstance(b, float) for b in result["beta"])
+    assert len(result["history"]["phase3"]) > 0
+
+
 def test_write_tuned_config(tmp_path):
     from evaluation.tune import _write_tuned_config
 
