@@ -48,7 +48,7 @@ The simulated model's `config.json` must match the real model's architecture. Ge
 ```bash
 .venv/bin/python -m evaluation.gen_sim_config \
   --model Qwen/Qwen3-32B \
-  --out deploy/eval/sim-configmap.yaml
+  --out models/qwen3-32b/deployments/h100-sxm5-tp1/latency/physics/configmap.yaml
 ```
 
 **Flags:**
@@ -66,7 +66,7 @@ To change the target model or GPU spec, adjust these flags and regenerate. The d
 Apply the manifests to deploy both the real GPU server and the simulated CPU server:
 
 ```bash
-oc apply -n <namespace> -f deploy/eval/
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/
 ```
 
 This creates:
@@ -110,7 +110,7 @@ The script waits for both Services' `/health` endpoints to respond, then runs `r
 Alternatively, run the driver fully in-cluster via a Job. **Note:** This in-cluster Job path has NOT been validated against a live cluster (the validated path is `run_eval.sh`). It uses the vLLM CPU image (for the `vllm bench serve` CLI) and puts the evaluation source tree on PYTHONPATH.
 
 ```bash
-oc apply -n <namespace> -f deploy/eval/benchmark-job.yaml
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/benchmark-job.yaml
 ```
 
 The Job is named **`vllm-benchmark`**. View logs with:
@@ -181,8 +181,8 @@ Each point runs on the real H100, so keep the matrix small.
 
 To evaluate a different model or hardware:
 1. Regenerate the sim config with `gen_sim_config.py` using the appropriate `--model`, `--tp`, `--peak-tflops`, `--hbm-gbps`, and `--weight-dtype` flags.
-2. Update `deploy/eval/real-deployment.yaml` to request the correct model and GPU type.
-3. Redeploy: `oc apply -n <namespace> -f deploy/eval/`
+2. Update `models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/real-deployment.yaml` to request the correct model and GPU type.
+3. Redeploy: `oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/`
 
 ### Fairness invariants
 
@@ -200,7 +200,7 @@ When customizing, preserve these requirements to keep the comparison valid:
 
 The real server downloads Qwen3-32B (~64 GB) on first startup. If readiness takes longer than expected:
 - Check the pod's events: `oc describe pod -n <namespace> <pod-name>`
-- Increase the readiness probe `initialDelaySeconds` in `deploy/eval/real-deployment.yaml` if the default is insufficient.
+- Increase the readiness probe `initialDelaySeconds` in `models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/real-deployment.yaml` if the default is insufficient.
 - For repeated runs, consider using a PersistentVolumeClaim to cache the weights (not required for MVP).
 
 ### `/dev/shm` sizing

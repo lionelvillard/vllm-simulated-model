@@ -35,12 +35,9 @@ spec:
         - serve
         - /model
         - --load-format=dummy
-        # Cap context so the KV cache fits VLLM_CPU_KVCACHE_SPACE (4 GiB). With
-        # this model config (256 KiB/token) the tokenizer-derived max of 40960
-        # would need ~10 GiB, exceeding the 8Gi pod limit.
         - --max-model-len=16384
-        - --tokenizer=Qwen/Qwen3-8B
-        - --served-model-name=sim-qwen-3.8-27b
+        - --tokenizer=Qwen/Qwen3-32B
+        - --served-model-name=qwen3-32b
         - --gpu-memory-utilization=0.5
         env:
         - name: PYTHONPATH

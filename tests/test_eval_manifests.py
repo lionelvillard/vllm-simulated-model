@@ -3,7 +3,15 @@ from pathlib import Path
 
 import yaml
 
-DEPLOY = Path(__file__).parent.parent / "deploy" / "eval"
+DEPLOY = (
+    Path(__file__).parent.parent
+    / "models"
+    / "qwen3-32b"
+    / "deployments"
+    / "h100-sxm5-tp1"
+    / "k8s"
+    / "eval"
+)
 
 
 def _load(name):
