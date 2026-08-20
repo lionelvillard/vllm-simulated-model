@@ -11,10 +11,13 @@ dependencies = ["torch"]
 
 [project.optional-dependencies]
 test = ["pytest", "vllm", "pyyaml"]
-eval = ["pyyaml"]
+eval = ["pyyaml", "scipy"]
 
 [project.entry-points."vllm.general_plugins"]
 simulated_model = "vllm_simulated:register"
+
+[project.entry-points."vllm.endpoint_plugins"]
+sim_tuner = "vllm_simulated.tuner_api:create_plugin"
 
 [tool.setuptools.packages.find]
 where = ["src"]
