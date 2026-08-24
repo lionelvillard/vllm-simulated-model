@@ -1,10 +1,19 @@
 # Qwen3-32B — H100 SXM5 Prefill/Decode Disaggregation
 
-Two separate H100 SXM5 instances connected via `NixlConnector`. The prefill instance processes prompt tokens and transfers KV caches to the decode instance over UCX. A lightweight proxy coordinates the two phases.
+Prefill/decode disaggregation: a prefill instance processes prompt tokens and
+transfers KV caches to a decode instance via `NixlConnector` over UCX, with a
+lightweight proxy coordinating the two phases.
 
-**Prerequisites:** 2 × H100 SXM5 GPUs; vLLM installed with Nixl support (`pip install vllm[nixl]`).
+The Kubernetes stack under `k8s/` runs this topology as the **simulated** model
+— CPU pods, dummy weights, the calibrated physics latency config — so you can
+exercise disaggregated serving and vLLM's KV-transfer path without any H100s.
+The "Local reference" section below documents the **real** two-GPU deployment
+the simulator is calibrated against.
 
-## Local (two GPUs on one host)
+> **Note:** the simulated P/D stack (CPU + `NixlConnector` + dummy weights) has
+> not yet been validated against a live cluster; treat it as a starting point.
+
+## Local reference (real, two GPUs on one host)
 
 Open three terminals from the vLLM repo root.
 
@@ -49,13 +58,14 @@ Send requests to `http://localhost:8000`.
 
 ## Latency Models
 
-Configs live under `latency/`.
+Configs live under `evaluation/`. The **physics** (calibrated) config is
+promoted into `k8s/` as the deployed simulator.
 
 | Directory | Description |
 |-----------|-------------|
-| [latency/flat](latency/flat/) | Empirical flat model (`base_ms` + per-token/per-seq terms) tuned by hand |
-| [latency/physics](latency/physics/) | Roofline physics model, calibrated betas β = [0.152, 0.0, 126.0] |
-| [latency/physics-beta-1.0](latency/physics-beta-1.0/) | Roofline physics model, unit betas β = [1.0, 1.0, 0.0] — uncalibrated baseline |
+| [evaluation/flat](evaluation/flat/) | Empirical flat model (`base_ms` + per-token/per-seq terms) tuned by hand |
+| [evaluation/physics](evaluation/physics/) | Roofline physics model, calibrated betas β = [0.152, 0.0, 126.0] |
+| [evaluation/physics-beta-1.0](evaluation/physics-beta-1.0/) | Roofline physics model, unit betas β = [1.0, 1.0, 0.0] — uncalibrated baseline |
 
 Each latency directory contains:
 - `configmap.yaml` — model architecture + latency params as a Kubernetes ConfigMap
@@ -72,50 +82,74 @@ never conflict.
 | [results/flat](results/flat/) | flat | — |
 | [results/physics-beta-1.0](results/physics-beta-1.0/) | physics-beta-1.0 | — |
 
-## Kubernetes
+## Kubernetes (simulated)
+
+`k8s/` runs the disaggregated topology as the simulated model on CPU nodes — no
+GPUs required. Apply the manifests (skip `sim-config.json`; it's the plain-JSON
+source the ConfigMap embeds, not a Kubernetes resource):
 
 ```bash
-kubectl apply -n <ns> -f k8s/
+K=models/qwen3-32b/deployments/h100-sxm5/pd/k8s
+kubectl apply -n <ns> \
+  -f $K/configmap.yaml \
+  -f $K/prefill-deployment.yaml -f $K/prefill-service.yaml \
+  -f $K/decode-deployment.yaml  -f $K/decode-service.yaml \
+  -f $K/proxy-deployment.yaml   -f $K/proxy-service.yaml
 ```
 
 This deploys:
 
 | Resource | Role | Notes |
 |----------|------|-------|
-| `vllm-qwen3-32b-pd-525604-prefill` | `kv_role: kv_producer` | Side-channel on port 5600; `VLLM_NIXL_SIDE_CHANNEL_HOST` set to pod IP |
-| `vllm-qwen3-32b-pd-525604-decode` | `kv_role: kv_consumer` | Side-channel on port 5601; `VLLM_NIXL_SIDE_CHANNEL_HOST` set to pod IP |
-| `vllm-qwen3-32b-pd-525604-proxy` | Request router | Init containers wait for both pods before the proxy starts |
+| `vllm-qwen3-32b-pd-eae748-prefill` | `kv_role: kv_producer` | Sim CPU pod; side-channel on port 5600; `VLLM_NIXL_SIDE_CHANNEL_HOST` = pod IP |
+| `vllm-qwen3-32b-pd-eae748-decode` | `kv_role: kv_consumer` | Sim CPU pod; side-channel on port 5601; `VLLM_NIXL_SIDE_CHANNEL_HOST` = pod IP |
+| `vllm-qwen3-32b-pd-eae748-proxy` | Request router | Init containers wait for both backends; routing-only, so it needs no GPU |
 
-Send all client traffic to `vllm-qwen3-32b-pd-525604-proxy:8000`. The proxy forwards the prefill phase (`max_tokens=1`) to `vllm-qwen3-32b-pd-525604-prefill`, then sends the full request to `vllm-qwen3-32b-pd-525604-decode` for streaming generation.
+Both backends run the sim plugin (`vllm/vllm-openai-cpu` image, `--load-format
+dummy`) and mount the physics ConfigMap at `/model`. The `6-char` hash `eae748`
+is the SHA of the (physics) latency config, matching the ConfigMap and the
+`vllm-qwen3-32b-pd-<hash>[-<role>]` naming scheme.
+
+The proxy still uses the `vllm/vllm-openai` image because it runs vLLM's
+`disagg_proxy_demo.py`; it only routes HTTP (no CUDA imports) and declares no GPU
+request, so it schedules on a CPU node.
+
+Send all client traffic to `vllm-qwen3-32b-pd-eae748-proxy:8000`. The proxy forwards the prefill phase (`max_tokens=1`) to `vllm-qwen3-32b-pd-eae748-prefill`, then sends the full request to `vllm-qwen3-32b-pd-eae748-decode` for streaming generation.
 
 ### Eval (real vs sim comparison)
 
+`eval.sh` handles the whole lifecycle (setup → run → teardown) from the variant
+dir; the report lands under `evaluation/results/<variant>/` — commit it:
+
 ```bash
-# 1. Apply the ConfigMap for the chosen latency variant:
-kubectl apply -n <ns> -f latency/physics/configmap.yaml
-
-# 2. Run the benchmark sweep from your machine:
-NAMESPACE=<ns> bash evaluation/run_eval.sh
-
-# 3. Commit results under results/<latency-variant>/
+NAMESPACE=<ns> bash evaluation/eval.sh \
+  models/qwen3-32b/deployments/h100-sxm5/pd/evaluation/physics
 ```
 
-See `evaluation/README.md` for full details and troubleshooting.
+Use `eval.sh tune <variant-dir>` to auto-tune a physics variant's `beta`. See
+`evaluation/README.md` for the full lifecycle, subcommands, and env knobs.
 
-### Node selection
+### Node placement
 
-Both `vllm-qwen3-32b-pd-525604-prefill` and `vllm-qwen3-32b-pd-525604-decode` use `nodeSelector: nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3`. Adjust this label (or add `tolerations`) to match your cluster's GPU nodes.
+The simulated backends request `4` CPU / `8Gi` memory each and no GPU, so they
+schedule on ordinary CPU nodes — there is no `nodeSelector`. Add one (plus
+`tolerations`) only if you need to pin the sim to specific nodes.
 
 ### HF token
 
-Both GPU deployments read `HF_TOKEN` from a Secret named `hf-token` (key: `token`). Create it before applying:
+Both backends read `HF_TOKEN` from a Secret named `hf-token` (key: `token`) —
+needed only if the **tokenizer** (`Qwen/Qwen3-32B`) is gated; the sim uses dummy
+weights, so no model download occurs. Create it before applying:
 
 ```bash
 kubectl create secret generic hf-token -n <ns> --from-literal=token=<your-token>
 ```
 
-The secret reference is `optional: true`, so pods start without it if the model is already cached or publicly accessible.
+The secret reference is `optional: true`, so pods start without it if the tokenizer is already cached or publicly accessible.
 
 ### Readiness
 
-Both prefill and decode pods have a 600 s `initialDelaySeconds` to allow weight download (~64 GB for Qwen3-32B). The proxy's init containers poll `/health` on each backend every 5 s and block until both respond.
+The sim starts quickly — no ~64 GB weight download. Each backend's `startupProbe`
+allows up to ~150 s (plugin install + CPU engine init) before liveness kicks in.
+The proxy's init containers poll `/health` on each backend every 5 s and block
+until both respond.

@@ -87,8 +87,9 @@ kubectl create secret generic hf-token \
 # 1. Create the shared PVC (once per cluster/namespace):
 kubectl apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/k8s/pvc.yaml
 
-# 2. Deploy the sim (choose a latency variant, e.g. physics):
-kubectl apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/evaluation/latency/physics/
+# 2. Deploy the tuned sim (calibrated physics stack under k8s/):
+K=models/qwen3-32b/deployments/h100-sxm5/standalone/k8s
+kubectl apply -n <namespace> -f $K/configmap.yaml -f $K/deployment.yaml -f $K/service.yaml
 ```
 
 This creates:
@@ -125,7 +126,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 | KV cache size | `VLLM_CPU_KVCACHE_SPACE` env | Increase until ~80% of node memory used (default: 4 GB) |
 | Thread binding | `VLLM_CPU_OMP_THREADS_BIND` env | Match the CPU limit range, e.g. `0-7` for 8 CPUs (default: `0-3`) |
 | Memory cap | `--gpu-memory-utilization` in command | Increase toward `0.9` once stable (default: `0.5`) |
-| Model config | `models/qwen3-32b/deployments/h100-sxm5/standalone/evaluation/latency/physics/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
+| Model config | `models/qwen3-32b/deployments/h100-sxm5/standalone/k8s/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
 | Tokenizer | `--tokenizer` in command | Use any HuggingFace tokenizer; set `hf-token` Secret if private |
 | Model name | `--served-model-name` in command | Change the name clients use in the `model` field |
 | Plugin version | tarball URL in init container command | Replace `/heads/main` with a release tag or commit SHA for production |

@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: vllm-qwen3-32b-pd-525604-prefill
+  name: vllm-qwen3-32b-pd-eae748-prefill
 spec:
   selector:
-    app: vllm-qwen3-32b-pd-525604-prefill
+    app: vllm-qwen3-32b-pd-eae748-prefill
   ports:
   - name: http
     port: 8000

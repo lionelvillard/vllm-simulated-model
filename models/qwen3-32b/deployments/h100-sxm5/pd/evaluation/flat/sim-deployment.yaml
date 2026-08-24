@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-qwen3-32b-standalone-dcd098
+  name: vllm-qwen3-32b-pd-dcd098-sim
   labels:
-    app: vllm-qwen3-32b-standalone-dcd098
+    app: vllm-qwen3-32b-pd-dcd098-sim
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm-qwen3-32b-standalone-dcd098
+      app: vllm-qwen3-32b-pd-dcd098-sim
   template:
     metadata:
       labels:
-        app: vllm-qwen3-32b-standalone-dcd098
+        app: vllm-qwen3-32b-pd-dcd098-sim
     spec:
       initContainers:
       - name: install-plugin
@@ -34,10 +34,13 @@ spec:
         - vllm
         - serve
         - /model
+        args:
         - --load-format=dummy
         - --max-model-len=16384
-        - --tokenizer=Qwen/Qwen3-32B
-        - --served-model-name=qwen3-32b
+        - --tokenizer
+        - Qwen/Qwen3-32B
+        - --served-model-name
+        - qwen3-32b
         - --gpu-memory-utilization=0.5
         env:
         - name: PYTHONPATH
@@ -50,8 +53,6 @@ spec:
           value: /tmp
         - name: XDG_CACHE_HOME
           value: /tmp/cache
-        - name: HF_HOME
-          value: /hf-cache
         - name: HF_TOKEN
           valueFrom:
             secretKeyRef:
@@ -61,23 +62,19 @@ spec:
         ports:
         - containerPort: 8000
           name: http
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          periodSeconds: 5
-          failureThreshold: 30
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
+          initialDelaySeconds: 60
           periodSeconds: 10
-          failureThreshold: 3
+          failureThreshold: 6
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
-          periodSeconds: 5
+          initialDelaySeconds: 60
+          periodSeconds: 10
           failureThreshold: 3
         resources:
           requests:
@@ -94,18 +91,13 @@ spec:
           readOnly: true
         - name: dshm
           mountPath: /dev/shm
-        - name: hf-cache
-          mountPath: /hf-cache
       volumes:
       - name: plugins
         emptyDir: {}
       - name: model-config
         configMap:
-          name: vllm-qwen3-32b-standalone-dcd098-config
+          name: vllm-qwen3-32b-pd-dcd098-config
       - name: dshm
         emptyDir:
           medium: Memory
           sizeLimit: 256Mi
-      - name: hf-cache
-        persistentVolumeClaim:
-          claimName: vllm-qwen3-32b-hf-cache

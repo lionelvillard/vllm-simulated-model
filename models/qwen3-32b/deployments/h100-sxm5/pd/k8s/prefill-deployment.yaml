@@ -1,49 +1,55 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-qwen3-32b-pd-525604-prefill
+  name: vllm-qwen3-32b-pd-eae748-prefill
   labels:
-    app: vllm-qwen3-32b-pd-525604-prefill
+    app: vllm-qwen3-32b-pd-eae748-prefill
     role: prefill
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm-qwen3-32b-pd-525604-prefill
+      app: vllm-qwen3-32b-pd-eae748-prefill
   template:
     metadata:
       labels:
-        app: vllm-qwen3-32b-pd-525604-prefill
+        app: vllm-qwen3-32b-pd-eae748-prefill
         role: prefill
     spec:
-      nodeSelector:
-        nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3  # <-- verify/replace for your cluster
-      # If your GPU nodes are tainted, uncomment and adjust:
-      # tolerations:
-      # - key: nvidia.com/gpu
-      #   operator: Exists
-      #   effect: NoSchedule
+      initContainers:
+      - name: install-plugin
+        image: python:3.12-slim
+        command:
+        - pip
+        - install
+        - --target=/plugins
+        - --no-deps
+        - --no-cache-dir
+        - https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz
+        volumeMounts:
+        - name: plugins
+          mountPath: /plugins
       containers:
       - name: vllm
-        image: vllm/vllm-openai:latest
+        image: vllm/vllm-openai-cpu:latest-x86_64
         command:
         - vllm
         - serve
-        - Qwen/Qwen3-32B
-        args:
-        - --served-model-name
-        - qwen3-32b
-        - --tokenizer
-        - Qwen/Qwen3-32B
-        - --tensor-parallel-size
-        - "1"
-        - --gpu-memory-utilization
-        - "0.9"
-        - --max-model-len
-        - "8192"
+        - /model
+        - --load-format=dummy
+        - --max-model-len=8192
+        - --tokenizer=Qwen/Qwen3-32B
+        - --served-model-name=qwen3-32b
+        - --gpu-memory-utilization=0.5
         - --kv-transfer-config
         - '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}'
         env:
+        - name: PYTHONPATH
+          value: /plugins
+        - name: VLLM_CPU_KVCACHE_SPACE
+          value: "4"
+        - name: VLLM_CPU_OMP_THREADS_BIND
+          value: "0-3"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -52,12 +58,12 @@ spec:
           value: "5600"
         - name: UCX_NET_DEVICES
           value: all
-        - name: HF_HOME
-          value: /tmp/hf
         - name: HOME
           value: /tmp
         - name: XDG_CACHE_HOME
           value: /tmp/cache
+        - name: HF_HOME
+          value: /tmp/hf
         - name: HF_TOKEN
           valueFrom:
             secretKeyRef:
@@ -69,37 +75,51 @@ spec:
           name: http
         - containerPort: 5600
           name: nixl-side
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 600
           periodSeconds: 10
-          failureThreshold: 6
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 600
-          periodSeconds: 10
+          periodSeconds: 5
           failureThreshold: 3
         resources:
           requests:
-            memory: 32Gi
-            nvidia.com/gpu: 1
+            cpu: "4"
+            memory: 8Gi
           limits:
-            memory: 32Gi
-            nvidia.com/gpu: 1
+            cpu: "4"
+            memory: 8Gi
         volumeMounts:
-        - name: hf-cache
-          mountPath: /tmp/hf
+        - name: plugins
+          mountPath: /plugins
+        - name: model-config
+          mountPath: /model
+          readOnly: true
         - name: dshm
           mountPath: /dev/shm
+        - name: hf-cache
+          mountPath: /tmp/hf
       volumes:
-      - name: hf-cache
-        emptyDir:
-          sizeLimit: 80Gi
+      - name: plugins
+        emptyDir: {}
+      - name: model-config
+        configMap:
+          name: vllm-qwen3-32b-pd-eae748-config
       - name: dshm
         emptyDir:
           medium: Memory
           sizeLimit: 1Gi
+      - name: hf-cache
+        emptyDir:
+          sizeLimit: 8Gi

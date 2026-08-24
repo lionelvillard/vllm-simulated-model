@@ -14,54 +14,56 @@ models/
       <hardware>/                   # e.g. h100-sxm5, cpu
         README.md                   # Hardware overview, latency table, deploy instructions
         standalone/                 # Single-instance (non-disaggregated) deployment
-          k8s/
+          k8s/                      # Tuned, deployable simulator (calibrated physics)
             pvc.yaml                # Shared hf-cache PVC (cluster prerequisite)
+            configmap.yaml          # Physics ConfigMap (model arch + latency params)
+            sim-config.json         # Plain-JSON copy of the ConfigMap's config.json
+            deployment.yaml         # Sim Deployment
+            service.yaml            # Sim ClusterIP Service
           evaluation/               # Everything needed to evaluate the sim
             sweep.yaml              # Benchmark matrix for this deployment
-            latency/
-              flat/                 # Empirical flat latency model
-              physics/              # Physics roofline model (calibrated)
-              physics-beta-1.0/     # Physics model, unit betas — uncalibrated baseline
-                sim-config.json     # Model arch + latency params (applied to vLLM)
-                configmap.yaml      # Kubernetes ConfigMap wrapping sim-config.json
-                deployment.yaml     # Sim Deployment for this variant
-                service.yaml        # Sim ClusterIP Service
-                eval/               # Deploy real + sim side by side for comparison
-                  real-deployment.yaml
-                  real-service.yaml
-                  sim-deployment.yaml
-                  sim-service.yaml
-                  benchmark-job.yaml
+            flat/                   # Empirical flat latency model
+            physics/                # Physics roofline model (calibrated)
+            physics-beta-1.0/       # Physics model, unit betas — uncalibrated baseline
+              sim-config.json       # Model arch + latency params (plain JSON)
+              configmap.yaml        # Kubernetes ConfigMap wrapping sim-config.json
+              deployment.yaml       # Sim Deployment for this variant
+              service.yaml          # Sim ClusterIP Service
+              eval/                 # Deploy real + sim side by side for comparison
+                real-deployment.yaml
+                real-service.yaml
+                sim-deployment.yaml
+                sim-service.yaml
+                benchmark-job.yaml
             results/
-              <category>/           # e.g. latency
-                <variant>/          # Eval report, named after the latency variant used
-                  report.md
-                  report.json
-                  warmup.json
-                  c<N>-isl<X>-osl<Y>-{real,sim}.json
-        pd/                         # Prefill/decode disaggregated deployment
-          k8s/
-            prefill-deployment.yaml
+              <variant>/            # Eval report, named after the latency variant used
+                report.md
+                report.json
+                warmup.json
+                c<N>-isl<X>-osl<Y>-{real,sim}.json
+        pd/                         # Prefill/decode disaggregated deployment (simulated, CPU)
+          k8s/                      # Tuned, deployable simulated P/D (calibrated physics)
+            configmap.yaml          # Physics ConfigMap (model arch + latency params)
+            sim-config.json         # Plain-JSON copy of the ConfigMap's config.json
+            prefill-deployment.yaml # Sim prefill pod (NixlConnector kv_producer)
             prefill-service.yaml
-            decode-deployment.yaml
+            decode-deployment.yaml  # Sim decode pod (NixlConnector kv_consumer)
             decode-service.yaml
-            proxy-deployment.yaml
+            proxy-deployment.yaml   # disagg proxy router
             proxy-service.yaml
           evaluation/               # Everything needed to evaluate the sim
             sweep.yaml              # Benchmark matrix for this deployment
-            latency/
-              flat/                 # Empirical flat latency model
-              physics/              # Physics roofline model (calibrated)
-              physics-beta-1.0/     # Physics model, unit betas — uncalibrated baseline
-                sim-config.json
-                configmap.yaml
+            flat/                   # Empirical flat latency model
+            physics/                # Physics roofline model (calibrated)
+            physics-beta-1.0/       # Physics model, unit betas — uncalibrated baseline
+              sim-config.json
+              configmap.yaml
             results/
-              <category>/           # e.g. latency
-                <variant>/
-                  report.md
-                  report.json
-                  warmup.json
-                  c<N>-isl<X>-osl<Y>-{real,sim}.json
+              <variant>/
+                report.md
+                report.json
+                warmup.json
+                c<N>-isl<X>-osl<Y>-{real,sim}.json
 ```
 
 ## Hardware Slugs
@@ -97,10 +99,15 @@ The deployment directory is named after the hardware only (no TP suffix — tens
    ```bash
    python -m evaluation.gen_sim_config \
      --model models/<model>/config.json \
-     --out models/<model>/deployments/<hardware>/standalone/evaluation/latency/physics/configmap.yaml \
+     --out models/<model>/deployments/<hardware>/standalone/evaluation/physics/configmap.yaml \
      --tp <n> --peak-tflops <X> --hbm-gbps <Y>
    ```
-   The tool also extracts the embedded JSON to `standalone/evaluation/latency/physics/sim-config.json` if you pass `--sim-config-out`.
-4. Copy K8s manifests from a sibling deployment's `standalone/k8s/` and `standalone/evaluation/latency/<variant>/` and update image, model name, and resource requests.
-5. Run the evaluation by passing the variant dir: `NAMESPACE=<ns> bash evaluation/run_eval.sh models/<model>/deployments/<hardware>/standalone/evaluation/latency/physics`. The report lands under `standalone/evaluation/results/latency/physics/` — commit it.
+   Then extract the plain-JSON `sim-config.json` sidecar (the auto-tuner reads it — see `evaluation/README.md`):
+   ```bash
+   .venv/bin/python -c 'import sys,yaml; cm=yaml.safe_load(open(sys.argv[1])); open(sys.argv[2],"w").write(cm["data"]["config.json"])' \
+     models/<model>/deployments/<hardware>/standalone/evaluation/physics/configmap.yaml \
+     models/<model>/deployments/<hardware>/standalone/evaluation/physics/sim-config.json
+   ```
+4. Copy K8s manifests from a sibling deployment's `standalone/k8s/` and `standalone/evaluation/<variant>/` and update image, model name, and resource requests.
+5. Run the evaluation by passing the variant dir: `NAMESPACE=<ns> bash evaluation/eval.sh models/<model>/deployments/<hardware>/standalone/evaluation/physics`. The report lands under `standalone/evaluation/results/physics/` — commit it. (Use `eval.sh tune <variant-dir>` to auto-tune a physics variant's `beta`.)
 6. Optionally add a `pd/` subdirectory with prefill/decode disaggregated manifests (see `h100-sxm5/pd/` for reference).
