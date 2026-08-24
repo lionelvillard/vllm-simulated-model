@@ -65,9 +65,9 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 ### Kubernetes
 
-The `deploy/` directory contains ready-to-use manifests for CPU-only linux/amd64 nodes.
-No custom image build is required — the plugin is injected at pod startup via an init
-container.
+Manifests for CPU-only linux/amd64 nodes live under
+`models/qwen3-32b/deployments/h100-sxm5/standalone/`. No custom image build is
+required — the plugin is injected at pod startup via an init container.
 
 **Prerequisites:** a cluster with at least one CPU node (4 CPU / 8 Gi) and internet
 egress so the init container can fetch the package from GitHub.
@@ -84,16 +84,23 @@ kubectl create secret generic hf-token \
 **Run the simulator:**
 
 ```bash
-kubectl apply -n <namespace> -f deploy/
+# 1. Create the shared PVC (once per cluster/namespace):
+kubectl apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/k8s/pvc.yaml
+
+# 2. Deploy the sim (choose a latency variant, e.g. physics):
+kubectl apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/
 ```
 
 This creates:
 
 | Resource | Name | Purpose |
 |---|---|---|
-| ConfigMap | `vllm-sim-model-config` | Qwen 3.5 model config and latency coefficients |
-| Deployment | `vllm-sim` | Single-replica CPU vLLM server |
-| Service | `vllm-sim` | ClusterIP on port 8000 |
+| PVC | `vllm-qwen3-32b-hf-cache` | Shared HuggingFace model cache (step 1, shared across variants) |
+| ConfigMap | `vllm-qwen3-32b-standalone-eae748-config` | Model architecture and latency parameters |
+| Deployment | `vllm-qwen3-32b-standalone-eae748` | Single-replica CPU vLLM server |
+| Service | `vllm-qwen3-32b-standalone-eae748` | ClusterIP on port 8000 |
+
+Resource names embed a 6-char hash of the latency config so multiple variants can coexist in the same namespace without conflicts. See `models/qwen3-32b/deployments/h100-sxm5/standalone/README.md` for the full list of variants.
 
 The pod takes roughly 60–120 s to become ready: the init container installs the plugin
 (~10–30 s depending on network), then vLLM initializes the CPU engine.
@@ -101,7 +108,7 @@ The pod takes roughly 60–120 s to become ready: the init container installs th
 **Send a test request:**
 
 ```bash
-kubectl port-forward svc/vllm-sim 8000:8000
+kubectl port-forward svc/vllm-qwen3-32b-standalone-eae748 8000:8000
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
@@ -118,7 +125,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 | KV cache size | `VLLM_CPU_KVCACHE_SPACE` env | Increase until ~80% of node memory used (default: 4 GB) |
 | Thread binding | `VLLM_CPU_OMP_THREADS_BIND` env | Match the CPU limit range, e.g. `0-7` for 8 CPUs (default: `0-3`) |
 | Memory cap | `--gpu-memory-utilization` in command | Increase toward `0.9` once stable (default: `0.5`) |
-| Model config | `deploy/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
+| Model config | `models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
 | Tokenizer | `--tokenizer` in command | Use any HuggingFace tokenizer; set `hf-token` Secret if private |
 | Model name | `--served-model-name` in command | Change the name clients use in the `model` field |
 | Plugin version | tarball URL in init container command | Replace `/heads/main` with a release tag or commit SHA for production |

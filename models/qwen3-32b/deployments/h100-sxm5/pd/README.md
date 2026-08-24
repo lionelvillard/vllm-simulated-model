@@ -57,15 +57,15 @@ This deploys:
 
 | Resource | Role | Notes |
 |----------|------|-------|
-| `vllm-prefill` | `kv_role: kv_producer` | Side-channel on port 5600; `VLLM_NIXL_SIDE_CHANNEL_HOST` set to pod IP |
-| `vllm-decode` | `kv_role: kv_consumer` | Side-channel on port 5601; `VLLM_NIXL_SIDE_CHANNEL_HOST` set to pod IP |
-| `vllm-pd-proxy` | Request router | Init containers wait for both pods before the proxy starts |
+| `vllm-qwen3-32b-pd-525604-prefill` | `kv_role: kv_producer` | Side-channel on port 5600; `VLLM_NIXL_SIDE_CHANNEL_HOST` set to pod IP |
+| `vllm-qwen3-32b-pd-525604-decode` | `kv_role: kv_consumer` | Side-channel on port 5601; `VLLM_NIXL_SIDE_CHANNEL_HOST` set to pod IP |
+| `vllm-qwen3-32b-pd-525604-proxy` | Request router | Init containers wait for both pods before the proxy starts |
 
-Send all client traffic to `vllm-pd-proxy:8000`. The proxy forwards the prefill phase (`max_tokens=1`) to `vllm-prefill`, then sends the full request to `vllm-decode` for streaming generation.
+Send all client traffic to `vllm-qwen3-32b-pd-525604-proxy:8000`. The proxy forwards the prefill phase (`max_tokens=1`) to `vllm-qwen3-32b-pd-525604-prefill`, then sends the full request to `vllm-qwen3-32b-pd-525604-decode` for streaming generation.
 
 ### Node selection
 
-Both `vllm-prefill` and `vllm-decode` use `nodeSelector: nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3`. Adjust this label (or add `tolerations`) to match your cluster's GPU nodes.
+Both `vllm-qwen3-32b-pd-525604-prefill` and `vllm-qwen3-32b-pd-525604-decode` use `nodeSelector: nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3`. Adjust this label (or add `tolerations`) to match your cluster's GPU nodes.
 
 ### HF token
 

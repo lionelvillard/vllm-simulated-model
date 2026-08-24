@@ -4,6 +4,7 @@ import subprocess
 import sys
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -81,6 +82,26 @@ def _detect_model(base_url: str) -> str:
     return data["data"][0]["id"]
 
 
+def _fetch_version(base_url: str) -> str:
+    try:
+        with urllib.request.urlopen(f"{base_url}/version", timeout=5) as resp:
+            return json.loads(resp.read()).get("version", "unknown")
+    except Exception:
+        return "unknown"
+
+
+def _load_latency_config(path: str) -> dict | None:
+    """Return the latency section from a ConfigMap YAML or plain sim-config JSON."""
+    with open(path) as f:
+        text = f.read()
+    doc = yaml.safe_load(text)
+    if isinstance(doc, dict) and doc.get("kind") == "ConfigMap":
+        cfg = json.loads(doc["data"]["config.json"])
+    else:
+        cfg = doc if isinstance(doc, dict) else json.loads(text)
+    return cfg.get("latency")
+
+
 def _run_bench(argv: list[str]) -> None:
     subprocess.run(argv, check=True)
 
@@ -98,7 +119,7 @@ def _warmup_argv(point, *, base_url, model, tokenizer, result_dir, seed):
 
 def run(
     *, real_url, sim_url, tokenizer, sweep_path, out_dir,
-    seed=0, warmup=True,
+    seed=0, warmup=True, model_config=None,
 ):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -109,6 +130,19 @@ def run(
     ]
     for label, url, model in endpoints:
         print(f"{label}: {url}  model={model}")
+    meta = {
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "model": endpoints[0][2],
+        "tokenizer": tokenizer,
+        "seed": seed,
+        "real_url": real_url,
+        "sim_url": sim_url,
+        "vllm_version": {
+            "real": _fetch_version(real_url),
+            "sim": _fetch_version(sim_url),
+        },
+        "latency_config": _load_latency_config(model_config) if model_config else None,
+    }
     results: list[PointResult] = []
     for pt in points:
         for label, url, model in endpoints:
@@ -133,9 +167,9 @@ def run(
             params={"isl": pt.isl, "osl": pt.osl, "concurrency": pt.concurrency},
             comparisons=compare_point(real, sim)))
     agg = aggregate(results)
-    (out / "report.md").write_text(render_markdown(results, agg))
+    (out / "report.md").write_text(render_markdown(results, agg, meta=meta))
     (out / "report.json").write_text(
-        json.dumps(render_json(results, agg), indent=2)
+        json.dumps(render_json(results, agg, meta=meta), indent=2)
     )
     print(f"wrote {out / 'report.md'} and {out / 'report.json'}")
     print(f"overall median MAPE: {agg['overall'] * 100:.1f}%")
@@ -154,10 +188,15 @@ def main(argv=None):
     ap.add_argument("--out", default="eval-out")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-warmup", action="store_true")
+    ap.add_argument(
+        "--model-config", default=None,
+        help="Path to sim ConfigMap YAML or sim-config.json; included in the report.",
+    )
     args = ap.parse_args(argv)
     run(real_url=args.real_url, sim_url=args.sim_url,
         tokenizer=args.tokenizer, sweep_path=args.sweep, out_dir=args.out,
-        seed=args.seed, warmup=not args.no_warmup)
+        seed=args.seed, warmup=not args.no_warmup,
+        model_config=args.model_config)
 
 
 if __name__ == "__main__":

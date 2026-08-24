@@ -47,11 +47,14 @@ kubectl apply -f latency/physics/
 ### Eval (real vs sim comparison)
 
 ```bash
-# 1. Deploy the sim:
-kubectl apply -n <ns> -f latency/physics/
+# 1. Apply the ConfigMap for the chosen latency variant:
+kubectl apply -n <ns> -f latency/physics/configmap.yaml
 
-# 2. Deploy real model + services + benchmark job:
-kubectl apply -n <ns> -f latency/physics/eval/
+# 2. Deploy real model + sim (Deployments and Services only):
+kubectl apply -n <ns> -f latency/physics/eval/sim-deployment.yaml
+kubectl apply -n <ns> -f latency/physics/eval/sim-service.yaml
+kubectl apply -n <ns> -f latency/physics/eval/real-deployment.yaml
+kubectl apply -n <ns> -f latency/physics/eval/real-service.yaml
 
 # 3. Run the benchmark sweep from your machine:
 NAMESPACE=<ns> bash evaluation/run_eval.sh

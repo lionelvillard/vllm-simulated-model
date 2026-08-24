@@ -3,13 +3,14 @@
 set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-}"
-REAL_SVC="${REAL_SVC:-vllm-real}"
-SIM_SVC="${SIM_SVC:-vllm-sim}"
+REAL_SVC="${REAL_SVC:-vllm-qwen3-32b-standalone-eae748-real}"
+SIM_SVC="${SIM_SVC:-vllm-qwen3-32b-standalone-eae748-sim}"
 REAL_PORT="${REAL_PORT:-9001}"
 SIM_PORT="${SIM_PORT:-9002}"
 OUT="${OUT:-eval-out}"
 KUBECTL="${KUBECTL:-oc}"
 PYTHON="${PYTHON:-}"
+MODEL_CONFIG="${MODEL_CONFIG:-}"
 
 # Run from the repo root so `python -m evaluation.run_eval` resolves.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,7 +53,11 @@ wait_health() {
 wait_health "$REAL_PORT" real
 wait_health "$SIM_PORT"  sim
 
+model_config_flag=()
+[ -n "$MODEL_CONFIG" ] && model_config_flag=(--model-config "$MODEL_CONFIG")
+
 "$PYTHON" -m evaluation.run_eval \
   --real-url "http://127.0.0.1:$REAL_PORT" \
   --sim-url "http://127.0.0.1:$SIM_PORT" \
-  --out "$OUT"
+  --out "$OUT" \
+  "${model_config_flag[@]}"

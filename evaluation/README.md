@@ -48,7 +48,7 @@ The simulated model's `config.json` must match the real model's architecture. Ge
 ```bash
 .venv/bin/python -m evaluation.gen_sim_config \
   --model Qwen/Qwen3-32B \
-  --out models/qwen3-32b/deployments/h100-sxm5-tp1/latency/physics/configmap.yaml
+  --out models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/configmap.yaml
 ```
 
 **Flags:**
@@ -59,20 +59,30 @@ The simulated model's `config.json` must match the real model's architecture. Ge
 - `--hbm-gbps <float>` (default: 3350.0): H100 SXM5 HBM bandwidth (GB/s)
 - `--weight-dtype <str>` (default: bfloat16): weight data type
 
-To change the target model or GPU spec, adjust these flags and regenerate. The default ConfigMap name is `vllm-sim-model-config`.
+To change the target model or GPU spec, adjust these flags and regenerate. The ConfigMap name is derived from the latency config hash (e.g. `vllm-qwen3-32b-standalone-eae748-config` for the `physics` variant).
 
 ## Deploy
 
 Apply the manifests to deploy both the real GPU server and the simulated CPU server:
 
 ```bash
-oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/
+# 1. Shared PVC (once per cluster/namespace):
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/k8s/pvc.yaml
+
+# 2. ConfigMap for the chosen latency variant (e.g. physics):
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/configmap.yaml
+
+# 3. Eval stack (sim + real Deployments and Services):
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/sim-deployment.yaml
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/sim-service.yaml
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/real-deployment.yaml
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/real-service.yaml
 ```
 
 This creates:
-- `vllm-real` Deployment and Service (H100 GPU, real Qwen/Qwen3-32B weights)
-- `vllm-sim` Deployment and Service (CPU, simulated model with generated config)
-- `vllm-sim-model-config` ConfigMap (from the previous step)
+- `vllm-qwen3-32b-standalone-eae748-real` Deployment and Service (H100 GPU, real Qwen/Qwen3-32B weights)
+- `vllm-qwen3-32b-standalone-eae748-sim` Deployment and Service (CPU, simulated model)
+- `vllm-qwen3-32b-standalone-eae748-config` ConfigMap (model architecture and latency parameters)
 
 **Note:** The real server downloads ~64 GB of weights on first startup. Readiness may take 5–10 minutes depending on network bandwidth. Watch pod status:
 
@@ -90,17 +100,21 @@ evaluation/run_eval.sh
 
 **Environment knobs** (with defaults):
 - `NAMESPACE` (empty): OpenShift namespace
-- `REAL_SVC=vllm-real`: real server Service name
-- `SIM_SVC=vllm-sim`: sim server Service name
+- `REAL_SVC=vllm-qwen3-32b-standalone-eae748-real`: real server Service name
+- `SIM_SVC=vllm-qwen3-32b-standalone-eae748-sim`: sim server Service name
 - `REAL_PORT=9001`: local port for real server
 - `SIM_PORT=9002`: local port for sim server
 - `OUT=eval-out`: output directory for reports and result JSONs
 - `KUBECTL=oc`: the Kubernetes CLI to use (e.g., `kubectl` or `oc`)
+- `MODEL_CONFIG` (empty): path to the sim ConfigMap YAML or `sim-config.json`; when set, the report's header includes the latency type, β values, and hardware spec
 
-Example with a specific namespace:
+Example with a specific namespace and latency config embedded in the report:
 
 ```bash
-NAMESPACE=my-namespace OUT=results evaluation/run_eval.sh
+NAMESPACE=my-namespace \
+MODEL_CONFIG=models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/configmap.yaml \
+OUT=results \
+evaluation/run_eval.sh
 ```
 
 The script waits for both Services' `/health` endpoints to respond, then runs `run_eval.py` to execute the benchmark sweep. Results land in `$OUT/report.md` and `$OUT/report.json`.
@@ -110,19 +124,19 @@ The script waits for both Services' `/health` endpoints to respond, then runs `r
 Alternatively, run the driver fully in-cluster via a Job. **Note:** This in-cluster Job path has NOT been validated against a live cluster (the validated path is `run_eval.sh`). It uses the vLLM CPU image (for the `vllm bench serve` CLI) and puts the evaluation source tree on PYTHONPATH.
 
 ```bash
-oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/benchmark-job.yaml
+oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/benchmark-job.yaml
 ```
 
-The Job is named **`vllm-benchmark`**. View logs with:
+The Job is named **`vllm-qwen3-32b-standalone-eae748-benchmark`**. View logs with:
 
 ```bash
-oc logs -n <namespace> job/vllm-benchmark -f
+oc logs -n <namespace> job/vllm-qwen3-32b-standalone-eae748-benchmark -f
 ```
 
 Report artifacts are written to `/out` in the pod (backed by an emptyDir). To retrieve them:
 
 ```bash
-pod=$(oc get pod -n <namespace> -l app=vllm-benchmark -o jsonpath='{.items[0].metadata.name}')
+pod=$(oc get pod -n <namespace> -l app=vllm-qwen3-32b-standalone-eae748-benchmark -o jsonpath='{.items[0].metadata.name}')
 oc cp -n <namespace> "$pod:/out/report.md" ./report.md
 oc cp -n <namespace> "$pod:/out/report.json" ./report.json
 ```
@@ -168,7 +182,7 @@ When the evaluation report shows significant error, use `tune.py` to automatical
 python -m evaluation.tune \
   --real-url http://localhost:9001 \
   --sim-url  http://localhost:9002 \
-  --model-config models/qwen3-32b/deployments/h100-sxm5-tp1/latency/physics/configmap.yaml \
+  --model-config models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/configmap.yaml \
   --tokenizer Qwen/Qwen3-32B \
   --out tune-out
 ```
@@ -225,8 +239,8 @@ Each point runs on the real H100, so keep the matrix small.
 
 To evaluate a different model or hardware:
 1. Regenerate the sim config with `gen_sim_config.py` using the appropriate `--model`, `--tp`, `--peak-tflops`, `--hbm-gbps`, and `--weight-dtype` flags.
-2. Update `models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/real-deployment.yaml` to request the correct model and GPU type.
-3. Redeploy: `oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/`
+2. Update `models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/real-deployment.yaml` to request the correct model and GPU type.
+3. Redeploy: `oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/`
 
 ### Fairness invariants
 
@@ -244,7 +258,7 @@ When customizing, preserve these requirements to keep the comparison valid:
 
 The real server downloads Qwen3-32B (~64 GB) on first startup. If readiness takes longer than expected:
 - Check the pod's events: `oc describe pod -n <namespace> <pod-name>`
-- Increase the readiness probe `initialDelaySeconds` in `models/qwen3-32b/deployments/h100-sxm5-tp1/k8s/eval/real-deployment.yaml` if the default is insufficient.
+- Increase the readiness probe `initialDelaySeconds` in `models/qwen3-32b/deployments/h100-sxm5/standalone/latency/physics/eval/real-deployment.yaml` if the default is insufficient.
 - For repeated runs, consider using a PersistentVolumeClaim to cache the weights (not required for MVP).
 
 ### `/dev/shm` sizing

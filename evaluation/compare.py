@@ -57,8 +57,43 @@ def _signed_hint(c) -> str:
     return "sim faster"
 
 
-def render_markdown(points, agg) -> str:
+def _render_meta_markdown(meta: dict) -> list[str]:
+    lines: list[str] = []
+    lines += ["## Environment", ""]
+    lines += ["| | |", "|---|---|"]
+    lines.append(f"| Date | {meta['date']} |")
+    lines.append(f"| Model | {meta['model']} |")
+    lines.append(f"| Tokenizer | {meta['tokenizer']} |")
+    lines.append(f"| Seed | {meta['seed']} |")
+    ver = meta.get("vllm_version", {})
+    lines.append(f"| vLLM (real) | {ver.get('real', 'unknown')} |")
+    lines.append(f"| vLLM (sim) | {ver.get('sim', 'unknown')} |")
+    lines.append("")
+    lc = meta.get("latency_config")
+    if lc:
+        lines += ["## Latency Config", ""]
+        lines += ["| Parameter | Value |", "|---|---|"]
+        lines.append(f"| Type | {lc.get('type', '—')} |")
+        lines.append(f"| TP | {lc.get('tp', 1)} |")
+        if "beta" in lc:
+            beta = lc["beta"]
+            lines.append(f"| β\\_pf | {beta[0]} |")
+            lines.append(f"| β\\_dc | {beta[1]} |")
+            lines.append(f"| β\\_base | {beta[2]} |")
+        hw = lc.get("hardware", {})
+        if hw:
+            lines.append(f"| Peak TFLOPs | {hw.get('peak_tflops', '—')} |")
+            lines.append(f"| HBM bandwidth | {hw.get('hbm_gbps', '—')} GB/s |")
+            lines.append(f"| Weight dtype | {hw.get('weight_dtype', '—')} |")
+        lines.append("")
+    lines += ["---", ""]
+    return lines
+
+
+def render_markdown(points, agg, *, meta=None) -> str:
     lines: list[str] = ["# Sim-vs-Real Evaluation Report", ""]
+    if meta:
+        lines += _render_meta_markdown(meta)
     for p in points:
         lines.append(f"### {p.label}")
         lines.append("")
@@ -84,21 +119,23 @@ def render_markdown(points, agg) -> str:
     return "\n".join(lines)
 
 
-def render_json(points, agg) -> dict:
-    return {
-        "aggregate": agg,
-        "points": [
-            {
-                "label": p.label,
-                "params": p.params,
-                "metrics": [
-                    {
-                        "name": c.name, "unit": c.unit, "real": c.real,
-                        "sim": c.sim, "ape": c.ape, "signed_pct": c.signed_pct,
-                    }
-                    for c in p.comparisons
-                ],
-            }
-            for p in points
-        ],
-    }
+def render_json(points, agg, *, meta=None) -> dict:
+    out = {}
+    if meta:
+        out["meta"] = meta
+    out["aggregate"] = agg
+    out["points"] = [
+        {
+            "label": p.label,
+            "params": p.params,
+            "metrics": [
+                {
+                    "name": c.name, "unit": c.unit, "real": c.real,
+                    "sim": c.sim, "ape": c.ape, "signed_pct": c.signed_pct,
+                }
+                for c in p.comparisons
+            ],
+        }
+        for p in points
+    ]
+    return out
