@@ -124,6 +124,7 @@ def run(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     points = load_sweep(sweep_path)
+    print(f"sweep: {sweep_path} ({len(points)} points)")
     endpoints = [
         ("real", real_url, _detect_model(real_url)),
         ("sim",  sim_url,  _detect_model(sim_url)),
@@ -147,12 +148,14 @@ def run(
     for pt in points:
         for label, url, model in endpoints:
             if warmup:
+                print(f"\n[{pt.label}] warmup → {label} ({url})")
                 _run_bench(_warmup_argv(
                     pt, base_url=url, model=model, tokenizer=tokenizer,
                     result_dir=str(out), seed=seed))
             fname = (
                 f"c{pt.concurrency}-isl{pt.isl}-osl{pt.osl}-{label}.json"
             )
+            print(f"\n[{pt.label}] bench → {label} ({url})")
             _run_bench(bench_argv(
                 pt, base_url=url, model=model, tokenizer=tokenizer,
                 result_dir=str(out), result_filename=fname, seed=seed))

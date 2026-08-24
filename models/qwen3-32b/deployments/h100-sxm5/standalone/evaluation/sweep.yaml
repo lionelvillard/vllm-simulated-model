@@ -1,7 +1,6 @@
 # Benchmark matrix (spec §6). Edit to extend; keep points small — each runs on the real H100.
 points:
-  - {isl: 1024, osl: 128, concurrency: 1,  num_prompts: 5}
-
+  - {isl: 1024, osl: 128, concurrency: 1,  num_prompts: 32}
   # - {isl: 1024, osl: 128, concurrency: 16, num_prompts: 256}
   # - {isl: 1024, osl: 128, concurrency: 64, num_prompts: 512}
   # - {isl: 256,  osl: 256, concurrency: 32, num_prompts: 256}

@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-qwen3-32b-standalone-dcd098
+  labels:
+    app: vllm-qwen3-32b-standalone-dcd098
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-qwen3-32b-standalone-dcd098
+  template:
+    metadata:
+      labels:
+        app: vllm-qwen3-32b-standalone-dcd098
+    spec:
+      initContainers:
+      - name: install-plugin
+        image: python:3.12-slim
+        command:
+        - pip
+        - install
+        - --target=/plugins
+        - --no-deps
+        - --no-cache-dir
+        - https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz
+        volumeMounts:
+        - name: plugins
+          mountPath: /plugins
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai-cpu:latest-x86_64
+        command:
+        - vllm
+        - serve
+        - /model
+        - --load-format=dummy
+        - --max-model-len=16384
+        - --tokenizer=Qwen/Qwen3-32B
+        - --served-model-name=qwen3-32b
+        - --gpu-memory-utilization=0.5
+        env:
+        - name: PYTHONPATH
+          value: /plugins
+        - name: VLLM_CPU_KVCACHE_SPACE
+          value: "4"
+        - name: VLLM_CPU_OMP_THREADS_BIND
+          value: "0-3"
+        - name: HOME
+          value: /tmp
+        - name: XDG_CACHE_HOME
+          value: /tmp/cache
+        - name: HF_HOME
+          value: /hf-cache
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+              optional: true
+        ports:
+        - containerPort: 8000
+          name: http
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "4"
+            memory: 8Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
+        volumeMounts:
+        - name: plugins
+          mountPath: /plugins
+        - name: model-config
+          mountPath: /model
+          readOnly: true
+        - name: dshm
+          mountPath: /dev/shm
+        - name: hf-cache
+          mountPath: /hf-cache
+      volumes:
+      - name: plugins
+        emptyDir: {}
+      - name: model-config
+        configMap:
+          name: vllm-qwen3-32b-standalone-dcd098-config
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
+      - name: hf-cache
+        persistentVolumeClaim:
+          claimName: vllm-qwen3-32b-hf-cache
