@@ -160,6 +160,50 @@ The `beta` coefficients live in the `latency` block of the simulated model's `co
 
 The end of the report shows the median APE per metric across all sweep points and an overall median MAPE headline.
 
+## Auto-tune the physics parameters
+
+When the evaluation report shows significant error, use `tune.py` to automatically find better `beta` values. It runs a coordinate search — one phase per parameter — against a fixed tuning workload (ISL=1024, OSL=128, concurrency=1, 32 prompts) and writes a ready-to-use sim config.
+
+```bash
+python -m evaluation.tune \
+  --real-url http://localhost:9001 \
+  --sim-url  http://localhost:9002 \
+  --model-config models/qwen3-32b/deployments/h100-sxm5-tp1/latency/physics/configmap.yaml \
+  --tokenizer Qwen/Qwen3-32B \
+  --out tune-out
+```
+
+**Flags:**
+- `--real-url` (required): base URL of the real vLLM server
+- `--sim-url` (required): base URL of the simulated vLLM server
+- `--model-config` (required): path to the sim `config.json` (or ConfigMap YAML) whose `beta` will be tuned
+- `--tokenizer` (default: `Qwen/Qwen3-32B`): tokenizer used for benchmarking
+- `--out` (default: `tune-out`): directory where outputs are written
+- `--seed` (default: `0`): random seed for reproducibility
+
+**How it works:**
+
+The search runs three sequential phases, each using `scipy.optimize.minimize_scalar` (bounded Brent's method):
+
+1. **Phase 1 — `beta_pf`** (`0.05–5.0`): minimises TTFT mean APE while holding `beta_dc=1.0` and `beta_base=0.0`.
+2. **Phase 2 — `beta_dc`** (`0.05–5.0`): minimises ITL mean APE using the `beta_pf` found in phase 1.
+3. **Phase 3 — `beta_base`** (`0.0–200.0`): minimises overall median MAPE using the `beta_pf` and `beta_dc` from phases 1–2.
+
+Each optimizer call runs `vllm bench serve` against the sim server (after POSTing the candidate `beta` to `/sim/config`) and compares the result against a single real-benchmark run taken at the start.
+
+**Outputs** (written to `--out`):
+
+| File | Contents |
+|------|----------|
+| `tuned-sim-config.json` | Copy of the input config with `latency.beta` set to the tuned values |
+| `tuning-report.md` | Per-phase iteration table (beta → MAPE) and final comparison at tuned beta |
+| `tuning-report.json` | Same in JSON form |
+| `real.json` | Real-server benchmark result used as the reference |
+| `sim-tune-<n>.json` | Sim benchmark result for each optimizer call |
+| `sim-final.json` | Sim benchmark result at the final tuned beta |
+
+After tuning, copy `tuned-sim-config.json` into your deployment (e.g. update the ConfigMap) and re-run the full evaluation sweep to confirm the improvement generalises across all sweep points.
+
 ## Customize the evaluation
 
 ### Extend the sweep
