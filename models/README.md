@@ -47,6 +47,21 @@ models/
             decode-service.yaml
             proxy-deployment.yaml
             proxy-service.yaml
+          evaluation/               # Everything needed to evaluate the sim
+            sweep.yaml              # Benchmark matrix for this deployment
+            latency/
+              flat/                 # Empirical flat latency model
+              physics/              # Physics roofline model (calibrated)
+              physics-beta-1.0/     # Physics model, unit betas — uncalibrated baseline
+                sim-config.json
+                configmap.yaml
+            results/
+              <category>/           # e.g. latency
+                <variant>/
+                  report.md
+                  report.json
+                  warmup.json
+                  c<N>-isl<X>-osl<Y>-{real,sim}.json
 ```
 
 ## Hardware Slugs
