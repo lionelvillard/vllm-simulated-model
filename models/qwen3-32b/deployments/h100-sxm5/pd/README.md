@@ -47,6 +47,31 @@ python3 examples/disaggregated/disaggregated_serving/disagg_proxy_demo.py \
 
 Send requests to `http://localhost:8000`.
 
+## Latency Models
+
+Configs live under `latency/`.
+
+| Directory | Description |
+|-----------|-------------|
+| [latency/flat](latency/flat/) | Empirical flat model (`base_ms` + per-token/per-seq terms) tuned by hand |
+| [latency/physics](latency/physics/) | Roofline physics model, calibrated betas β = [0.152, 0.0, 126.0] |
+| [latency/physics-beta-1.0](latency/physics-beta-1.0/) | Roofline physics model, unit betas β = [1.0, 1.0, 0.0] — uncalibrated baseline |
+
+Each latency directory contains:
+- `configmap.yaml` — model architecture + latency params as a Kubernetes ConfigMap
+- `sim-config.json` — same config as a plain JSON file for local use
+
+Resource names follow the scheme `vllm-qwen3-32b-pd-<hash>[-<role>]` where `<hash>` is a
+6-char SHA-256 of the latency config. This ensures simultaneous deployments of different variants
+never conflict.
+
+## Eval Results
+
+| Directory | Latency model used | Notes |
+|-----------|--------------------|-------|
+| [results/flat](results/flat/) | flat | — |
+| [results/physics-beta-1.0](results/physics-beta-1.0/) | physics-beta-1.0 | — |
+
 ## Kubernetes
 
 ```bash
@@ -62,6 +87,20 @@ This deploys:
 | `vllm-qwen3-32b-pd-525604-proxy` | Request router | Init containers wait for both pods before the proxy starts |
 
 Send all client traffic to `vllm-qwen3-32b-pd-525604-proxy:8000`. The proxy forwards the prefill phase (`max_tokens=1`) to `vllm-qwen3-32b-pd-525604-prefill`, then sends the full request to `vllm-qwen3-32b-pd-525604-decode` for streaming generation.
+
+### Eval (real vs sim comparison)
+
+```bash
+# 1. Apply the ConfigMap for the chosen latency variant:
+kubectl apply -n <ns> -f latency/physics/configmap.yaml
+
+# 2. Run the benchmark sweep from your machine:
+NAMESPACE=<ns> bash evaluation/run_eval.sh
+
+# 3. Commit results under results/<latency-variant>/
+```
+
+See `evaluation/README.md` for full details and troubleshooting.
 
 ### Node selection
 
