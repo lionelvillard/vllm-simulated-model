@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-pd-proxy
+  name: vllm-qwen3-32b-pd-525604-proxy
   labels:
-    app: vllm-pd-proxy
+    app: vllm-qwen3-32b-pd-525604-proxy
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm-pd-proxy
+      app: vllm-qwen3-32b-pd-525604-proxy
   template:
     metadata:
       labels:
-        app: vllm-pd-proxy
+        app: vllm-qwen3-32b-pd-525604-proxy
     spec:
       # Wait for both vLLM instances to become ready before starting the proxy.
       # The disagg_proxy_demo.py validates the model on both backends at startup.
@@ -23,7 +23,7 @@ spec:
         - sh
         - -c
         - |
-          until wget -qO- http://vllm-prefill:8000/health > /dev/null 2>&1; do
+          until wget -qO- http://vllm-qwen3-32b-pd-525604-prefill:8000/health > /dev/null 2>&1; do
             echo "waiting for prefill..."; sleep 5
           done
       - name: wait-for-decode
@@ -32,7 +32,7 @@ spec:
         - sh
         - -c
         - |
-          until wget -qO- http://vllm-decode:8000/health > /dev/null 2>&1; do
+          until wget -qO- http://vllm-qwen3-32b-pd-525604-decode:8000/health > /dev/null 2>&1; do
             echo "waiting for decode..."; sleep 5
           done
       containers:
@@ -45,9 +45,9 @@ spec:
         - --model
         - qwen3-32b
         - --prefill
-        - vllm-prefill:8000
+        - vllm-qwen3-32b-pd-525604-prefill:8000
         - --decode
-        - vllm-decode:8000
+        - vllm-qwen3-32b-pd-525604-decode:8000
         - --port
         - "8000"
         env:

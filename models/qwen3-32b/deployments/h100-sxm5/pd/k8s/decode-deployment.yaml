@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-decode
+  name: vllm-qwen3-32b-pd-525604-decode
   labels:
-    app: vllm-decode
+    app: vllm-qwen3-32b-pd-525604-decode
     role: decode
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm-decode
+      app: vllm-qwen3-32b-pd-525604-decode
   template:
     metadata:
       labels:
-        app: vllm-decode
+        app: vllm-qwen3-32b-pd-525604-decode
         role: decode
     spec:
       nodeSelector:

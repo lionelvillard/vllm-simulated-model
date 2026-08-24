@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vllm-sim-model-config
+  name: vllm-qwen3-32b-standalone-dcd098-config
 data:
   config.json: |
     {

@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-prefill
+  name: vllm-qwen3-32b-pd-525604-prefill
   labels:
-    app: vllm-prefill
+    app: vllm-qwen3-32b-pd-525604-prefill
     role: prefill
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm-prefill
+      app: vllm-qwen3-32b-pd-525604-prefill
   template:
     metadata:
       labels:
-        app: vllm-prefill
+        app: vllm-qwen3-32b-pd-525604-prefill
         role: prefill
     spec:
       nodeSelector:
