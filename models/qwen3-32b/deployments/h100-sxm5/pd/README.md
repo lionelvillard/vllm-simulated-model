@@ -57,6 +57,11 @@ The proxy still uses the `vllm/vllm-openai` image because it runs vLLM's
 `disagg_proxy_demo.py`; it only routes HTTP (no CUDA imports) and declares no GPU
 request, so it schedules on a CPU node.
 
+> [!NOTE]
+> The proxy deployment includes a patch init container that removes IP address
+> validation from `disagg_proxy_demo.py` to support Kubernetes DNS service names
+> (the upstream script only accepts `localhost` or IP addresses, not hostnames).
+
 Send all client traffic to `vllm-qwen3-32b-pd-eae748-proxy:8000`. The proxy
 forwards the prefill phase (`max_tokens=1`) to `vllm-qwen3-32b-pd-eae748-prefill`,
 then sends the full request to `vllm-qwen3-32b-pd-eae748-decode` for streaming

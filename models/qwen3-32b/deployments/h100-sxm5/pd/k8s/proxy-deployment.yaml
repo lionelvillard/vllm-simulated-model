@@ -35,12 +35,25 @@ spec:
           until wget -qO- http://vllm-qwen3-32b-pd-eae748-decode:8000/health > /dev/null 2>&1; do
             echo "waiting for decode..."; sleep 5
           done
+      - name: create-patched-proxy
+        image: vllm/vllm-openai:latest
+        command:
+        - sh
+        - -c
+        - |
+          # Copy the original script and remove the IP address validation
+          cp /vllm-workspace/examples/disaggregated/disaggregated_serving/disagg_proxy_demo.py /scripts/disagg_proxy_demo.py
+          # Patch: skip IP validation for non-localhost hosts (allow hostnames)
+          sed -i '/if host != "localhost":/,/ipaddress.ip_address(host)/c\            # IP validation removed to support Kubernetes DNS names' /scripts/disagg_proxy_demo.py
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
       containers:
       - name: proxy
         image: vllm/vllm-openai:latest
         command:
         - python3
-        - /vllm-workspace/examples/disaggregated/disaggregated_serving/disagg_proxy_demo.py
+        - /scripts/disagg_proxy_demo.py
         args:
         - --model
         - qwen3-32b
@@ -77,3 +90,9 @@ spec:
           limits:
             cpu: "2"
             memory: 2Gi
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+      volumes:
+      - name: scripts
+        emptyDir: {}
