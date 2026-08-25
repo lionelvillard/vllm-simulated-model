@@ -1,13 +1,16 @@
 # vllm-sim-deps Container Image
 
-Pre-built container image that bundles vLLM simulated model dependencies to speed
+Pre-built container image that bundles the vLLM simulated model plugin to speed
 up Kubernetes pod startup.
 
 ## Contents
 
 The image packages:
 - **vllm-simulated-model plugin** — provides simulated latency models
-- **nixl** — KV cache transfer library for prefill/decode disaggregation
+
+> [!NOTE]
+> NIXL is no longer included in this image. Use `ghcr.io/llm-d/llm-d-cpu` base
+> image which has NIXL pre-installed.
 
 ## Building and Pushing
 
@@ -20,16 +23,17 @@ echo $GITHUB_TOKEN | docker login ghcr.io -u lionelvillard --password-stdin
 **Build and push:**
 ```bash
 # From repo root
-./docker/vllm-sim-deps/build.sh v0.1.0
+./docker/vllm-sim-deps/build.sh v0.2.0
 ```
 
-The script builds the image and pushes it to `ghcr.io/lionelvillard/vllm-sim-deps:v0.1.0`.
+The script builds the image and pushes it to `ghcr.io/lionelvillard/vllm-sim-deps:v0.2.0`.
 
 ## Version Compatibility
 
-| Image Version | Plugin Version | nixl Version | vLLM Version | Notes |
-|---------------|----------------|--------------|--------------|-------|
-| v0.1.0        | 0.1.0          | 1.3.2        | ≥0.6.8       | Initial release with NixlConnector support |
+| Image Version | Plugin Version | Base Image | Notes |
+|---------------|----------------|------------|-------|
+| v0.1.0        | 0.1.0          | N/A        | Legacy: included NIXL 1.3.2 |
+| v0.2.0        | 0.1.0+         | ghcr.io/llm-d/llm-d-cpu:v0.9.0 | Plugin only - NIXL in base image |
 
 ## Updating to a New Version
 
@@ -37,10 +41,7 @@ The script builds the image and pushes it to `ghcr.io/lionelvillard/vllm-sim-dep
    ```dockerfile
    # Change the git tag
    RUN pip install --target=/plugins --no-deps --no-cache-dir \
-       https://github.com/lionelvillard/vllm-simulated-model/archive/refs/tags/v0.2.0.tar.gz
-   
-   # Update nixl if needed
-   RUN pip install --target=/nixl-deps --no-cache-dir nixl==1.4.0
+       https://github.com/lionelvillard/vllm-simulated-model/archive/refs/tags/v0.3.0.tar.gz
    ```
 
 2. **Build and push:**
@@ -51,7 +52,7 @@ The script builds the image and pushes it to `ghcr.io/lionelvillard/vllm-sim-dep
 3. **Update deployment manifests** across the repo:
    ```bash
    find models -name "*-deployment.yaml" -exec \
-     sed -i '' 's|vllm-sim-deps:v0.1.0|vllm-sim-deps:v0.2.0|g' {} +
+     sed -i '' 's|vllm-sim-deps:v0.2.0|vllm-sim-deps:v0.3.0|g' {} +
    ```
 
 4. **Update the version table above** with the new version entry.
@@ -79,17 +80,16 @@ git checkout docker/vllm-sim-deps/Dockerfile
 
 ## Versioning Scheme
 
-Image version follows the plugin version:
+Image version indicates the plugin packaging:
 
-- **Format:** `v<major>.<minor>.<patch>` (e.g., v0.1.0)
+- **Format:** `v<major>.<minor>.<patch>` (e.g., v0.2.0)
 - **Plugin version:** Matches the git tag used in the Dockerfile
-- **nixl version:** Specified in Dockerfile, tracked in compatibility table
-- **vLLM compatibility:** Documented based on testing
+- **Base image compatibility:** Documented in compatibility table
 
 ### When to Bump Versions
 
 | Change | Action |
 |--------|--------|
 | Plugin update (features, bug fixes) | Create new git tag, rebuild with new version |
-| nixl update (security, compatibility) | Bump patch version, update Dockerfile |
-| Breaking vLLM integration changes | Bump major version |
+| Base image change (llm-d-cpu version) | Update compatibility table |
+| Breaking plugin API changes | Bump major version |

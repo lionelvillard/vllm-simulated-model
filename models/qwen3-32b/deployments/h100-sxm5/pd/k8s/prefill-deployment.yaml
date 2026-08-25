@@ -17,24 +17,20 @@ spec:
         role: prefill
     spec:
       initContainers:
-      # Copy pre-built dependencies (plugin + nixl) from deps image
-      # See docker/vllm-sim-deps/README.md for version compatibility
-      - name: install-deps
-        image: ghcr.io/lionelvillard/vllm-sim-deps:v0.1.0
+      # Copy simulated model plugin from deps image
+      - name: install-plugin
+        image: ghcr.io/lionelvillard/vllm-sim-deps:v0.3.0
+        imagePullPolicy: Always
         command:
         - sh
         - -c
-        - |
-          cp -r /plugins/* /mnt/plugins/
-          cp -r /nixl-deps/* /mnt/nixl-deps/
+        - cp -r /plugins/* /mnt/plugins/
         volumeMounts:
         - name: plugins
           mountPath: /mnt/plugins
-        - name: nixl-deps
-          mountPath: /mnt/nixl-deps
       containers:
       - name: vllm
-        image: vllm/vllm-openai-cpu:latest-x86_64
+        image: vllm/vllm-openai-cpu:v0.27.0-x86_64
         command:
         - vllm
         - serve
@@ -45,10 +41,10 @@ spec:
         - --served-model-name=qwen3-32b
         - --gpu-memory-utilization=0.5
         - --kv-transfer-config
-        - '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}'
+        - '{"kv_connector":"SimulatedNixlConnector","kv_role":"kv_producer","kv_connector_extra_config":{"bandwidth_gbps":100,"handshake_ms":2}}'
         env:
         - name: PYTHONPATH
-          value: /plugins:/nixl-deps
+          value: /plugins
         - name: VLLM_CPU_KVCACHE_SPACE
           value: "4"
         - name: VLLM_CPU_OMP_THREADS_BIND
@@ -59,8 +55,6 @@ spec:
               fieldPath: status.podIP
         - name: VLLM_NIXL_SIDE_CHANNEL_PORT
           value: "5600"
-        - name: UCX_NET_DEVICES
-          value: all
         - name: HOME
           value: /tmp
         - name: XDG_CACHE_HOME
@@ -106,8 +100,6 @@ spec:
         volumeMounts:
         - name: plugins
           mountPath: /plugins
-        - name: nixl-deps
-          mountPath: /nixl-deps
         - name: model-config
           mountPath: /model
           readOnly: true
@@ -117,8 +109,6 @@ spec:
           mountPath: /tmp/hf
       volumes:
       - name: plugins
-        emptyDir: {}
-      - name: nixl-deps
         emptyDir: {}
       - name: model-config
         configMap:

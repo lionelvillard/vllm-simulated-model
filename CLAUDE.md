@@ -14,6 +14,15 @@ Note for worktrees: this file may be checked out under
 `vllm-simulated-model/.claude/worktrees/<name>/`, so `../vllm` from the worktree
 does **not** point at the checkout — resolve it from the main repo root instead.
 
+## GitHub repository organization
+
+This repository is hosted under the **lionelvillard** GitHub organization:
+`https://github.com/lionelvillard/vllm-simulated-model`
+
+The local file path (`vllm-project/vllm-simulated-model`) does **not** reflect
+the GitHub organization. Always use `lionelvillard` when referencing GitHub URLs,
+container registry paths, or archive URLs in Dockerfiles and documentation.
+
 ## Running tests
 
 The test suite requires a virtual environment. Each worktree (and the root

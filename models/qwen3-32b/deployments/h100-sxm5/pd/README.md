@@ -178,12 +178,13 @@ sudo apt-get install -y build-essential git cmake ninja-build \
   autotools-dev automake meson libtool libtool-bin pkg-config patchelf
 ```
 
-For more details, see the [NIXL usage guide](https://docs.vllm.ai/en/latest/features/nixl_connector_usage.html).
+For more details on real NIXL, see the [NIXL usage guide](https://docs.vllm.ai/en/latest/features/nixl_connector_usage.html).
 
-> [!WARNING]
-> **macOS limitation:** NIXL does not support macOS. The disaggregated
-> prefill/decode setup with `NixlConnector` requires a Linux machine (bare
-> metal, VM, or container) or deployment to Kubernetes.
+> [!NOTE]
+> This deployment uses `SimulatedNixlConnector`, which does **not** require
+> NIXL, UCX, or RDMA hardware. It simulates KV transfer latency using a
+> bandwidth model (default 100 Gbps) and runs on any platform, including macOS.
+> No actual KV data is transferred.
 
 #### Run the simulator
 
@@ -197,8 +198,8 @@ VLLM_NIXL_SIDE_CHANNEL_PORT=5600 \
 vllm serve Qwen/Qwen3-32B \
   --served-model-name qwen3-32b \
   --load-format dummy \
-  --port 8100 \
-  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}'
+  --port 8000 \
+  --kv-transfer-config '{"kv_connector":"SimulatedNixlConnector","kv_role":"kv_producer","kv_connector_extra_config":{"bandwidth_gbps":100,"handshake_ms":2}}'
 ```
 
 **Terminal 2 — decode:**
@@ -210,7 +211,7 @@ vllm serve Qwen/Qwen3-32B \
   --served-model-name qwen3-32b \
   --load-format dummy \
   --port 8200 \
-  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}'
+  --kv-transfer-config '{"kv_connector":"SimulatedNixlConnector","kv_role":"kv_consumer","kv_connector_extra_config":{"bandwidth_gbps":100,"handshake_ms":2}}'
 ```
 
 **Terminal 3 — coordination** (after both vLLM servers are ready):
@@ -219,9 +220,9 @@ For local development, you can use vLLM's built-in proxy script:
 ```bash
 python3 examples/disaggregated/disaggregated_serving/disagg_proxy_demo.py \
   --model qwen3-32b \
-  --prefill localhost:8100 \
+  --prefill localhost:8000 \
   --decode  localhost:8200 \
-  --port 8000
+  --port 8080
 ```
 
 > [!NOTE]

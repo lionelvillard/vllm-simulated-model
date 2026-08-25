@@ -10,6 +10,7 @@ def register() -> None:
         "vllm_simulated.model:SimulatedForCausalLM",
     )
     _use_fork_on_cpu()
+    _register_kv_connector()
 
 
 def _use_fork_on_cpu() -> None:
@@ -57,3 +58,43 @@ def _use_fork_on_cpu() -> None:
 
     check_and_update_config._sim_fork_patched = True
     CpuPlatform.check_and_update_config = classmethod(check_and_update_config)
+
+
+def _register_kv_connector() -> None:
+    """Register the simulated NIXL KV connector.
+
+    Allows P/D disaggregation without real NIXL/UCX dependencies. Uses a
+    bandwidth-based latency model to simulate KV transfer time.
+    """
+    try:
+        from vllm.distributed.kv_transfer.kv_connector.factory import (
+            KVConnectorFactory,
+        )
+
+        KVConnectorFactory.register_connector(
+            "SimulatedNixlConnector",
+            "vllm_simulated.nixl_sim",
+            "SimulatedNixlConnector",
+        )
+        logger = None
+        try:
+            from vllm.logger import init_logger
+
+            logger = init_logger(__name__)
+            logger.info("Registered SimulatedNixlConnector for KV transfer")
+        except Exception:
+            pass
+    except Exception as e:
+        # If KV connector registration fails (e.g., non-KV build), log but
+        # don't break the plugin.
+        try:
+            from vllm.logger import init_logger
+
+            logger = init_logger(__name__)
+            logger.debug(
+                "Could not register SimulatedNixlConnector: %s. "
+                "KV transfer features unavailable.",
+                e,
+            )
+        except Exception:
+            pass

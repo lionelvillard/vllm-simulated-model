@@ -21,7 +21,7 @@ cd "$REPO_ROOT"
 FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
 
 echo "Building ${FULL_IMAGE}..."
-docker build -f docker/vllm-sim-deps/Dockerfile -t "${FULL_IMAGE}" .
+docker build --platform linux/amd64 -f docker/vllm-sim-deps/Dockerfile -t "${FULL_IMAGE}" .
 
 echo "Pushing ${FULL_IMAGE}..."
 docker push "${FULL_IMAGE}"
