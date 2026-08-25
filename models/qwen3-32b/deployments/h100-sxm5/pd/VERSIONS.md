@@ -5,36 +5,40 @@ image and vLLM versions for the Qwen3-32B P/D deployment.
 
 ## Current Version
 
-**Init container image:** `ghcr.io/lionelvillard/vllm-sim-deps:v0.1.0`
+**Init container image:** `ghcr.io/lionelvillard/vllm-sim-deps:v0.3.0`
 
 ## Compatibility Matrix
 
-| Init Image | Plugin Version | nixl Version | vLLM Version | Notes |
-|------------|----------------|--------------|--------------|-------|
-| v0.1.0     | 0.1.0          | 1.3.2        | ≥0.6.8       | Initial release with NixlConnector support |
+| Init Image | Plugin Version | Base Image | vLLM Version | Notes |
+|------------|----------------|------------|--------------|-------|
+| v0.3.0     | 0.1.0+         | ghcr.io/llm-d/llm-d-cpu:v0.9.0 | ≥0.6.8 | Plugin only - NIXL in base image |
+| v0.2.0     | 0.1.0+         | ghcr.io/llm-d/llm-d-cpu:v0.9.0 | ≥0.6.8 | Plugin only - NIXL in base image |
+| v0.1.0     | 0.1.0          | N/A        | ≥0.6.8       | Legacy: included NIXL 1.3.2 |
 
 ## Version Components
 
 Each init container image version bundles:
 
 1. **vllm-simulated-model plugin** — provides the simulated latency model
-2. **nixl** — KV cache transfer library for P/D disaggregation
+
+> [!NOTE]
+> NIXL is no longer included in v0.2.0+. The llm-d-cpu base image provides NIXL pre-installed.
 
 ## Image Build & Release
 
-Build and push the dependencies image:
+Build and push the dependencies image from the repo root:
 
 ```bash
-cd models/qwen3-32b/deployments/h100-sxm5/pd/k8s
-
 # Authenticate with GitHub Container Registry
 echo $GITHUB_TOKEN | docker login ghcr.io -u lionelvillard --password-stdin
 
 # Build and push
-./build-deps-image.sh v0.1.0
+./docker/vllm-sim-deps/build.sh v0.3.0
 ```
 
 The image is published to `ghcr.io/lionelvillard/vllm-sim-deps`.
+
+See [docker/vllm-sim-deps/README.md](../../../../../docker/vllm-sim-deps/README.md) for build details.
 
 ## Versioning Scheme
 
@@ -55,44 +59,15 @@ The init container image version follows the plugin version:
 
 ## Updating to a New Version
 
-1. **Update the Dockerfile:**
-   ```dockerfile
-   # Change the git tag
-   RUN pip install --target=/plugins --no-deps --no-cache-dir \
-       https://github.com/lionelvillard/vllm-simulated-model/archive/refs/tags/v0.2.0.tar.gz
-   
-   # Update nixl if needed
-   RUN pip install --target=/nixl-deps --no-cache-dir nixl==1.4.0
-   ```
-
-2. **Build and push the new image:**
+1. **Update deployment manifests:**
    ```bash
-   ./build-deps-image.sh v0.2.0
+   # Update to new version
+   find models/qwen3-32b/deployments/h100-sxm5/pd -name "*-deployment.yaml" -exec \
+     sed -i '' 's|vllm-sim-deps:v0.3.0|vllm-sim-deps:v0.4.0|g' {} +
    ```
 
-3. **Update deployment manifests:**
-   ```bash
-   sed -i '' 's|vllm-sim-deps:v0.1.0|vllm-sim-deps:v0.2.0|g' \
-     prefill-deployment.yaml decode-deployment.yaml
-   ```
+2. **Update this compatibility table** with the new version entry.
 
-4. **Update this compatibility table** with the new version entry.
+3. **Test the deployment** before rolling out to production.
 
-5. **Test the deployment** before rolling out to production.
-
-## Using Development Builds
-
-For development and testing, you can build from the `main` branch:
-
-```bash
-# Edit Dockerfile.deps to use main branch instead of a tag
-sed -i '' 's|refs/tags/v[0-9.]*|refs/heads/main|' Dockerfile.deps
-
-# Build with dev tag
-docker build -f Dockerfile.deps -t ghcr.io/lionelvillard/vllm-sim-deps:dev .
-docker push ghcr.io/lionelvillard/vllm-sim-deps:dev
-```
-
-> [!WARNING]
-> Development builds from `main` are not guaranteed to be stable. Always use
-> tagged releases for production deployments.
+For building new image versions, see [docker/vllm-sim-deps/README.md](../../../../../docker/vllm-sim-deps/README.md).

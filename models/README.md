@@ -27,14 +27,11 @@ models/
             physics-beta-1.0/       # Physics model, unit betas — uncalibrated baseline
               sim-config.json       # Model arch + latency params (plain JSON)
               configmap.yaml        # Kubernetes ConfigMap wrapping sim-config.json
-              deployment.yaml       # Sim Deployment for this variant
-              service.yaml          # Sim ClusterIP Service
-              eval/                 # Deploy real + sim side by side for comparison
-                real-deployment.yaml
-                real-service.yaml
-                sim-deployment.yaml
-                sim-service.yaml
-                benchmark-job.yaml
+              real-deployment.yaml  # Real model deployment for eval
+              real-service.yaml
+              sim-deployment.yaml   # Sim Deployment for this variant
+              sim-service.yaml      # Sim ClusterIP Service
+              benchmark-job.yaml    # In-cluster benchmark Job
             results/
               <variant>/            # Eval report, named after the latency variant used
                 report.md
@@ -47,17 +44,20 @@ models/
             sim-config.json         # Plain-JSON copy of the ConfigMap's config.json
             prefill-deployment.yaml # Sim prefill pod (NixlConnector kv_producer)
             prefill-service.yaml
-            decode-deployment.yaml  # Sim decode pod (NixlConnector kv_consumer)
+            decode-deployment.yaml  # Sim decode pod (NixlConnector kv_consumer + llm-d sidecar)
             decode-service.yaml
-            proxy-deployment.yaml   # disagg proxy router
-            proxy-service.yaml
           evaluation/               # Everything needed to evaluate the sim
             sweep.yaml              # Benchmark matrix for this deployment
             flat/                   # Empirical flat latency model
             physics/                # Physics roofline model (calibrated)
             physics-beta-1.0/       # Physics model, unit betas — uncalibrated baseline
-              sim-config.json
-              configmap.yaml
+              sim-config.json       # Model arch + latency params (plain JSON)
+              configmap.yaml        # Kubernetes ConfigMap wrapping sim-config.json
+              real-deployment.yaml  # Real model deployment for eval
+              real-service.yaml
+              sim-deployment.yaml   # Sim Deployment for this variant
+              sim-service.yaml      # Sim ClusterIP Service
+              benchmark-job.yaml    # In-cluster benchmark Job
             results/
               <variant>/
                 report.md
@@ -73,7 +73,7 @@ The deployment directory is named after the hardware only (no TP suffix — tens
 | Slug | GPU | Peak TFLOPs (BF16) | HBM bandwidth |
 |------|-----|--------------------|---------------|
 | `h100-sxm5` | NVIDIA H100 SXM5 80 GB | 989 | 3350 GB/s |
-| `h100-pcie` | NVIDIA H100 PCIe 80 GB | 312 | 2000 GB/s |
+| `h100-pcie` | NVIDIA H100 PCIe 80 GB | 756 | 2000 GB/s |
 | `cpu` | x86 CPU (vLLM CPU backend) | — | — |
 
 ## Models

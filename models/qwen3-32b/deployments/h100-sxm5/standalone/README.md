@@ -108,15 +108,15 @@ Configs live under `evaluation/`.
 | Directory | Description |
 |-----------|-------------|
 | [evaluation/flat](evaluation/flat/) | Empirical flat model (`base_ms` + per-token/per-seq terms) tuned by hand |
-| [evaluation/physics](evaluation/physics/) | Roofline physics model, calibrated betas β = [0.152, 0.0, 126.0] |
+| [evaluation/physics](evaluation/physics/) | Roofline physics model, calibrated betas β = [0.15, 0.0, 126.0] |
 | [evaluation/physics-beta-1.0](evaluation/physics-beta-1.0/) | Roofline physics model, unit betas β = [1.0, 1.0, 0.0] — uncalibrated baseline |
 
 Each latency directory contains:
 - `configmap.yaml` — model architecture + latency params as a Kubernetes ConfigMap
 - `sim-config.json` — same config as a plain JSON file for local use
-- `deployment.yaml` — sim Deployment (references this variant's ConfigMap and the shared PVC)
-- `service.yaml` — ClusterIP Service for the sim
-- `eval/` — real + sim Deployments/Services and benchmark Job for a real-vs-sim comparison
+- `real-deployment.yaml`, `real-service.yaml` — real model deployment for eval
+- `sim-deployment.yaml`, `sim-service.yaml` — sim Deployment and Service for eval
+- `benchmark-job.yaml` — in-cluster benchmark Job for real-vs-sim comparison
 
 ## Eval Results
 

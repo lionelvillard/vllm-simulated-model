@@ -16,20 +16,18 @@ spec:
     spec:
       initContainers:
       - name: install-plugin
-        image: python:3.12-slim
+        image: ghcr.io/lionelvillard/vllm-sim-deps:v0.3.0
+        imagePullPolicy: Always
         command:
-        - pip
-        - install
-        - --target=/plugins
-        - --no-deps
-        - --no-cache-dir
-        - https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz
+        - sh
+        - -c
+        - cp -r /plugins/* /mnt/plugins/
         volumeMounts:
         - name: plugins
-          mountPath: /plugins
+          mountPath: /mnt/plugins
       containers:
       - name: vllm
-        image: vllm/vllm-openai-cpu:latest-x86_64
+        image: vllm/vllm-openai-cpu:v0.27.0-x86_64
         command:
         - vllm
         - serve

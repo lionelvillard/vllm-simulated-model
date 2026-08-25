@@ -210,7 +210,7 @@ vllm-simulated-model's physics latency model is adapted from BLIS's roofline mat
 
 ### Building the Dependencies Container Image
 
-The Kubernetes deployments use a pre-built container image (`ghcr.io/lionelvillard/vllm-sim-deps`) that bundles the plugin and nixl dependencies. This speeds up pod startup significantly.
+The Kubernetes deployments use a pre-built container image (`ghcr.io/lionelvillard/vllm-sim-deps`) that bundles the plugin and NIXL dependencies. This speeds up pod startup significantly.
 
 **Build and push (maintainers only):**
 
@@ -219,7 +219,7 @@ The Kubernetes deployments use a pre-built container image (`ghcr.io/lionelvilla
 echo $GITHUB_TOKEN | docker login ghcr.io -u lionelvillard --password-stdin
 
 # Build and push from repo root
-./docker/vllm-sim-deps/build.sh v0.1.0
+./docker/vllm-sim-deps/build.sh v0.3.0
 ```
 
 See [docker/vllm-sim-deps/README.md](docker/vllm-sim-deps/README.md) for version compatibility and update procedures.
