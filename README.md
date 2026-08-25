@@ -39,15 +39,17 @@ See [Supported Models](#supported-models) for the complete list.
 Latency configuration lives in the model's `config.json` under the `latency`
 key. The `type` field selects which model to use; it defaults to `"linear"`.
 
-Any `latency` block can be overridden at launch with `--hf-overrides`. The
-flag **replaces** the entire `latency` mapping, so include every key you want
-set:
+Any `latency` block can be overridden at launch with `--hf-overrides`.
 
-```bash
-VLLM_SIMULATED_PLUGIN_CONFIG=/path/to/sim-config.json \
-vllm serve <model-id> --load-format dummy \
-  --hf-overrides '{"latency": {"type": "linear", "base_ms": 5.0, ...}}'
-```
+> [!WARNING]
+> The `--hf-overrides` flag **replaces** the entire `latency` mapping, so include
+> every key you want set:
+> 
+> ```bash
+> VLLM_SIMULATED_PLUGIN_CONFIG=/path/to/sim-config.json \
+> vllm serve <model-id> --load-format dummy \
+>   --hf-overrides '{"latency": {"type": "linear", "base_ms": 5.0, ...}}'
+> ```
 
 Both models support `deterministic_length` (bool, default `true`): when set,
 the EOS token is masked so requests always run to `max_tokens` — convenient for

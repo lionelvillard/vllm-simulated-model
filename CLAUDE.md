@@ -38,3 +38,28 @@ pytest tests/
 
 The venv's `pytest` is isolated from system-wide packages (e.g. `pytest-ansible`)
 that can crash pytest startup, so always use the venv binary, never the system one.
+
+## Documentation style
+
+When writing markdown documentation, use GitHub-flavored alerts for callouts:
+
+```markdown
+> [!NOTE]
+> Informational context or helpful background.
+
+> [!TIP]
+> Optional suggestions to improve workflow or understanding.
+
+> [!IMPORTANT]
+> Critical information users should not miss.
+
+> [!WARNING]
+> Potential issues or non-obvious behaviors that could cause problems.
+
+> [!CAUTION]
+> Actions that can cause data loss, security issues, or system damage.
+```
+
+Use alerts sparingly — reserve them for content that truly needs visual emphasis.
+Prefer alerts over bold text for platform limitations, security notes, and
+destructive operations.

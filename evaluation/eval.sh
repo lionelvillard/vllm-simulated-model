@@ -31,9 +31,9 @@
 # Its parent layout <eval>/<variant> determines where outputs are written:
 # <eval>/results/<variant> (e.g. evaluation/results/physics).
 #
-# Environment overrides (rarely needed): NAMESPACE, REAL_SVC, SIM_SVC, REAL_DEP,
-# SIM_DEP, REAL_PORT, SIM_PORT, OUT, MODEL_CONFIG, SIM_CONFIG, SWEEP, KUBECTL,
-# PYTHON, SETUP_TIMEOUT, HEALTH_TIMEOUT, KEEP.
+# Environment overrides (rarely needed): VLLM_SIM_NAMESPACE (or NAMESPACE),
+# REAL_SVC, SIM_SVC, REAL_DEP, SIM_DEP, REAL_PORT, SIM_PORT, OUT, MODEL_CONFIG,
+# SIM_CONFIG, SWEEP, KUBECTL, PYTHON, SETUP_TIMEOUT, HEALTH_TIMEOUT, KEEP.
 set -euo pipefail
 
 usage() {
@@ -68,7 +68,7 @@ res_name() {  # <kind> <file>
   ' "$2"
 }
 
-NAMESPACE="${NAMESPACE:-}"
+NAMESPACE="${VLLM_SIM_NAMESPACE:-${NAMESPACE:-}}"
 REAL_SVC="${REAL_SVC:-$(res_name Service    "$EVAL_MANIFESTS/real-service.yaml")}"
 SIM_SVC="${SIM_SVC:-$(res_name Service    "$EVAL_MANIFESTS/sim-service.yaml")}"
 REAL_DEP="${REAL_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/real-deployment.yaml")}"

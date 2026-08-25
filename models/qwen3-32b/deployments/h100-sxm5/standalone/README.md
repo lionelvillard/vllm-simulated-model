@@ -12,15 +12,21 @@ for `k8s/`.
 ### Kubernetes (simulated)
 
 `k8s/` runs the calibrated physics simulator on CPU nodes — no GPUs required.
+
+**One-time setup:**
+```bash
+export VLLM_SIM_NAMESPACE=default  # or your target namespace
+```
+
 Apply the manifests (skip `sim-config.json` — it's the plain-JSON source the
 ConfigMap embeds, not a Kubernetes resource):
 
 ```bash
 # Shared prerequisite (once per cluster/namespace)
-kubectl apply -f k8s/pvc.yaml
+kubectl apply -n $VLLM_SIM_NAMESPACE -f k8s/pvc.yaml
 
 # Tuned simulator
-kubectl apply -f k8s/configmap.yaml -f k8s/deployment.yaml -f k8s/service.yaml
+kubectl apply -n $VLLM_SIM_NAMESPACE -f k8s/configmap.yaml -f k8s/deployment.yaml -f k8s/service.yaml
 ```
 
 To deploy a different latency variant instead, point at its ConfigMap under
@@ -34,9 +40,10 @@ deployments of different variants never conflict.
 
 #### Prerequisites
 
-**vLLM must be built from source** — the PyPI package does not support CPU-only
-or macOS environments. See the [vLLM CPU build guide](https://docs.vllm.ai/en/latest/getting_started/installation/cpu.html)
-for platform-specific instructions.
+> [!IMPORTANT]
+> **vLLM must be built from source** — the PyPI package does not support
+> CPU-only or macOS environments. See the [vLLM CPU build guide](https://docs.vllm.ai/en/latest/getting_started/installation/cpu.html)
+> for platform-specific instructions.
 
 Once vLLM is installed, install this plugin from the `vllm-simulated-model`
 repo root:
@@ -99,9 +106,11 @@ Reports live under `evaluation/results/<variant>/`, mirroring the config tree.
 dir; the report lands under `evaluation/results/<variant>/` — commit it:
 
 ```bash
-NAMESPACE=<ns> bash evaluation/eval.sh \
+bash evaluation/eval.sh \
   models/qwen3-32b/deployments/h100-sxm5/standalone/evaluation/physics
 ```
+
+The script uses `$VLLM_SIM_NAMESPACE` from your environment.
 
 Use `eval.sh tune <variant-dir>` to auto-tune a physics variant's `beta`. See
 `evaluation/README.md` for the full lifecycle, subcommands, and env knobs.

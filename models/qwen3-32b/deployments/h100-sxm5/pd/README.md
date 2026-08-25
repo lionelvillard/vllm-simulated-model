@@ -10,20 +10,28 @@ KV-transfer path without any H100s. The `evaluation/` directory contains
 latency-model variants and benchmark reports; the `physics` variant is the
 calibration source for `k8s/`.
 
-> **Note:** the simulated P/D stack (CPU + `NixlConnector` + dummy weights) has
-> not yet been validated against a live cluster; treat it as a starting point.
+> [!NOTE]
+> The simulated P/D stack (CPU + `NixlConnector` + dummy weights) has not yet
+> been validated against a live cluster; treat it as a starting point.
 
 ## Deployment
 
 ### Kubernetes (simulated)
 
 `k8s/` runs the disaggregated topology as the simulated model on CPU nodes — no
-GPUs required. Apply the manifests (skip `sim-config.json`; it's the plain-JSON
-source the ConfigMap embeds, not a Kubernetes resource):
+GPUs required. 
+
+**One-time setup:**
+```bash
+export VLLM_SIM_NAMESPACE=default  # or your target namespace
+```
+
+Apply the manifests (skip `sim-config.json`; it's the plain-JSON source the 
+ConfigMap embeds, not a Kubernetes resource):
 
 ```bash
 K=models/qwen3-32b/deployments/h100-sxm5/pd/k8s
-kubectl apply -n <ns> \
+kubectl apply -n $VLLM_SIM_NAMESPACE \
   -f $K/configmap.yaml \
   -f $K/prefill-deployment.yaml -f $K/prefill-service.yaml \
   -f $K/decode-deployment.yaml  -f $K/decode-service.yaml \
@@ -41,7 +49,9 @@ This deploys:
 Both backends run the sim plugin (`vllm/vllm-openai-cpu` image, `--load-format
 dummy`) and mount the physics ConfigMap at `/model`. The `6-char` hash `eae748`
 is the SHA of the (physics) latency config, matching the ConfigMap and the
-`vllm-qwen3-32b-pd-<hash>[-<role>]` naming scheme.
+`vllm-qwen3-32b-pd-<hash>[-<role>]` naming scheme. Both deployments include an
+init container that installs NIXL 1.3.2, which is required for KV cache transfer
+via `NixlConnector`.
 
 The proxy still uses the `vllm/vllm-openai` image because it runs vLLM's
 `disagg_proxy_demo.py`; it only routes HTTP (no CUDA imports) and declares no GPU
@@ -57,11 +67,12 @@ generation.
 uses dummy weights, so no model download occurs. Create it before applying:
 
 ```bash
-kubectl create secret generic hf-token -n <ns> --from-literal=token=<your-token>
+kubectl create secret generic hf-token -n $VLLM_SIM_NAMESPACE --from-literal=token=hf_...
 ```
 
-The secret reference is `optional: true`, so pods start without it if the
-tokenizer is already cached or publicly accessible.
+> [!TIP]
+> The secret reference is `optional: true`, so pods start without it if the
+> tokenizer is already cached or publicly accessible.
 
 **Readiness:** The sim starts quickly — no ~64 GB weight download. Each backend's
 `startupProbe` allows up to ~150 s (plugin install + CPU engine init) before
@@ -76,9 +87,10 @@ Add one (plus `tolerations`) only if you need to pin the sim to specific nodes.
 
 #### Prerequisites
 
-**vLLM must be built from source** — the PyPI package does not support CPU-only
-or macOS environments. See the [vLLM CPU build guide](https://docs.vllm.ai/en/latest/getting_started/installation/cpu.html)
-for platform-specific instructions.
+> [!IMPORTANT]
+> **vLLM must be built from source** — the PyPI package does not support
+> CPU-only or macOS environments. See the [vLLM CPU build guide](https://docs.vllm.ai/en/latest/getting_started/installation/cpu.html)
+> for platform-specific instructions.
 
 Once vLLM is installed, install this plugin from the `vllm-simulated-model`
 repo root:
@@ -91,6 +103,35 @@ uv pip install -e .
 
 The plugin registers itself via the `vllm.general_plugins` entry point; no code
 changes to vLLM are needed.
+
+**NIXL installation** — the `NixlConnector` requires the NIXL library for KV
+cache transfer. **NIXL is Linux-only** (tested on Ubuntu 22.04/24.04 and Fedora).
+
+**Quick start (NVIDIA GPU on Linux):**
+```bash
+uv pip install nixl==1.3.2
+```
+
+**CPU-only Linux:**
+NIXL supports multiple transport backends (UCX with RDMA/TCP, LIBFABRIC, etc.).
+The PyPI wheel includes UCX. For CPU-only environments or custom builds, you can
+build UCX and NIXL from source from the vLLM repo root (sibling `../vllm`):
+```bash
+python tools/install_nixl_from_source_ubuntu.py
+```
+
+If not running as root, manually install system dependencies first:
+```bash
+sudo apt-get install -y build-essential git cmake ninja-build \
+  autotools-dev automake meson libtool libtool-bin pkg-config patchelf
+```
+
+For more details, see the [NIXL usage guide](https://docs.vllm.ai/en/latest/features/nixl_connector_usage.html).
+
+> [!WARNING]
+> **macOS limitation:** NIXL does not support macOS. The disaggregated
+> prefill/decode setup with `NixlConnector` requires a Linux machine (bare
+> metal, VM, or container) or deployment to Kubernetes.
 
 #### Run the simulator
 
@@ -165,9 +206,11 @@ Each latency directory contains:
 dir; the report lands under `evaluation/results/<variant>/` — commit it:
 
 ```bash
-NAMESPACE=<ns> bash evaluation/eval.sh \
+bash evaluation/eval.sh \
   models/qwen3-32b/deployments/h100-sxm5/pd/evaluation/physics
 ```
+
+The script uses `$VLLM_SIM_NAMESPACE` from your environment.
 
 Use `eval.sh tune <variant-dir>` to auto-tune a physics variant's `beta`. See
 `evaluation/README.md` for the full lifecycle, subcommands, and env knobs.
