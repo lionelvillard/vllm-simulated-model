@@ -205,3 +205,21 @@ vllm-simulated-model's physics latency model is adapted from BLIS's roofline mat
 - Generated text is random; only timing and stack behavior are meaningful.
 - Physics model `beta` parameters require manual tuning or auto-calibration via `eval.sh tune` (see [evaluation/README.md](evaluation/README.md)).
 - Timing uses `time.sleep` (~1 ms granularity); best for ITL ≳ a few ms.
+
+## Development
+
+### Building the Dependencies Container Image
+
+The Kubernetes deployments use a pre-built container image (`ghcr.io/lionelvillard/vllm-sim-deps`) that bundles the plugin and nixl dependencies. This speeds up pod startup significantly.
+
+**Build and push (maintainers only):**
+
+```bash
+# Authenticate with GitHub Container Registry
+echo $GITHUB_TOKEN | docker login ghcr.io -u lionelvillard --password-stdin
+
+# Build and push from repo root
+./docker/vllm-sim-deps/build.sh v0.1.0
+```
+
+See [docker/vllm-sim-deps/README.md](docker/vllm-sim-deps/README.md) for version compatibility and update procedures.

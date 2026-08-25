@@ -63,3 +63,9 @@ When writing markdown documentation, use GitHub-flavored alerts for callouts:
 Use alerts sparingly — reserve them for content that truly needs visual emphasis.
 Prefer alerts over bold text for platform limitations, security notes, and
 destructive operations.
+
+## API examples
+
+When providing curl examples for vLLM endpoints, prefer the **chat/completions API**
+(`/v1/chat/completions`) over the completions API (`/v1/completions`). The chat API
+is more commonly used and supports the standard OpenAI chat format with messages.

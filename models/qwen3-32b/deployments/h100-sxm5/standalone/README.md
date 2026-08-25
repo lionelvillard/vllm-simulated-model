@@ -36,6 +36,33 @@ Resource names follow the scheme `vllm-qwen3-32b-standalone-<hash>` where
 `<hash>` is a 6-char SHA-256 of the latency config, ensuring simultaneous
 deployments of different variants never conflict.
 
+#### Verify deployment
+
+```bash
+# Forward port 8000 to localhost
+kubectl port-forward -n $VLLM_SIM_NAMESPACE \
+  svc/vllm-qwen3-32b-standalone-eae748 8000:8000
+
+# In another terminal:
+# Health check
+curl http://localhost:8000/health
+
+# List models
+curl http://localhost:8000/v1/models
+
+# Chat completion
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3-32b",
+    "messages": [
+      {"role": "user", "content": "Tell me a short story about a robot."}
+    ],
+    "max_tokens": 100,
+    "temperature": 0.7
+  }'
+```
+
 ### Local (CPU, simulated)
 
 #### Prerequisites

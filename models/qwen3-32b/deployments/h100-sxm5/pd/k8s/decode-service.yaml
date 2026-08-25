@@ -9,7 +9,4 @@ spec:
   - name: http
     port: 8000
     targetPort: 8000
-  - name: nixl-side
-    port: 5601
-    targetPort: 5601
   type: ClusterIP

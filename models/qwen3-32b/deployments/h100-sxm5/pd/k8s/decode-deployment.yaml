@@ -17,30 +17,58 @@ spec:
         role: decode
     spec:
       initContainers:
-      - name: install-plugin
-        image: python:3.12-slim
+      # Copy pre-built dependencies (plugin + nixl) from deps image
+      # See docker/vllm-sim-deps/README.md for version compatibility
+      - name: install-deps
+        image: ghcr.io/lionelvillard/vllm-sim-deps:v0.1.0
         command:
-        - pip
-        - install
-        - --target=/plugins
-        - --no-deps
-        - --no-cache-dir
-        - https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz
+        - sh
+        - -c
+        - |
+          cp -r /plugins/* /mnt/plugins/
+          cp -r /nixl-deps/* /mnt/nixl-deps/
         volumeMounts:
         - name: plugins
-          mountPath: /plugins
-      - name: install-nixl
-        image: python:3.12-slim
-        command:
-        - pip
-        - install
-        - --target=/nixl-deps
-        - --no-cache-dir
-        - nixl==1.3.2
-        volumeMounts:
+          mountPath: /mnt/plugins
         - name: nixl-deps
-          mountPath: /nixl-deps
+          mountPath: /mnt/nixl-deps
       containers:
+      # llm-d sidecar for P/D disaggregation coordination
+      - name: sidecar
+        image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:latest
+        args:
+        - --kv-connector=nixlv2
+        - --port=8000
+        - --secure-proxy=false
+        env:
+        - name: PREFILLER_HOST
+          value: vllm-qwen3-32b-pd-eae748-prefill:8000
+        - name: DECODER_HOST
+          value: localhost:8200
+        ports:
+        - containerPort: 8000
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "500m"
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
       - name: vllm
         image: vllm/vllm-openai-cpu:latest-x86_64
         command:
@@ -52,6 +80,7 @@ spec:
         - --tokenizer=Qwen/Qwen3-32B
         - --served-model-name=qwen3-32b
         - --gpu-memory-utilization=0.5
+        - --port=8200
         - --kv-transfer-config
         - '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}'
         env:
@@ -82,26 +111,26 @@ spec:
               key: token
               optional: true
         ports:
-        - containerPort: 8000
-          name: http
+        - containerPort: 8200
+          name: vllm
         - containerPort: 5601
           name: nixl-side
         startupProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8200
           periodSeconds: 5
           failureThreshold: 30
         livenessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8200
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
-            port: 8000
+            port: 8200
           periodSeconds: 5
           failureThreshold: 3
         resources:
