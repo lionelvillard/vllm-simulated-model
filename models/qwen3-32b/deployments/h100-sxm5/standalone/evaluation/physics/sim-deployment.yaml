@@ -53,6 +53,8 @@ spec:
           value: /tmp
         - name: XDG_CACHE_HOME
           value: /tmp/cache
+        - name: VLLM_PLUGINS
+          value: simulated_model,sim_tuner
         - name: VLLM_SIM_TUNER
           value: "1"
         - name: VLLM_SIM_CONFIG_PATH
