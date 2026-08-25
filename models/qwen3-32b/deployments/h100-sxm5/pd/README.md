@@ -4,85 +4,18 @@ Prefill/decode disaggregation: a prefill instance processes prompt tokens and
 transfers KV caches to a decode instance via `NixlConnector` over UCX, with a
 lightweight proxy coordinating the two phases.
 
-The Kubernetes stack under `k8s/` runs this topology as the **simulated** model
-— CPU pods, dummy weights, the calibrated physics latency config — so you can
-exercise disaggregated serving and vLLM's KV-transfer path without any H100s.
-The "Local reference" section below documents the **real** two-GPU deployment
-the simulator is calibrated against.
+The Kubernetes stack under `k8s/` runs the calibrated **physics** simulator —
+CPU pods, dummy weights — so you can exercise disaggregated serving and vLLM's
+KV-transfer path without any H100s. The `evaluation/` directory contains
+latency-model variants and benchmark reports; the `physics` variant is the
+calibration source for `k8s/`.
 
 > **Note:** the simulated P/D stack (CPU + `NixlConnector` + dummy weights) has
 > not yet been validated against a live cluster; treat it as a starting point.
 
-## Local reference (real, two GPUs on one host)
+## Deployment
 
-Open three terminals from the vLLM repo root.
-
-**Terminal 1 — prefill:**
-```bash
-CUDA_VISIBLE_DEVICES=0 \
-VLLM_NIXL_SIDE_CHANNEL_HOST=localhost \
-VLLM_NIXL_SIDE_CHANNEL_PORT=5600 \
-vllm serve Qwen/Qwen3-32B \
-  --served-model-name qwen3-32b \
-  --tensor-parallel-size 1 \
-  --gpu-memory-utilization 0.9 \
-  --max-model-len 8192 \
-  --port 8100 \
-  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}'
-```
-
-**Terminal 2 — decode:**
-```bash
-CUDA_VISIBLE_DEVICES=1 \
-VLLM_NIXL_SIDE_CHANNEL_HOST=localhost \
-VLLM_NIXL_SIDE_CHANNEL_PORT=5601 \
-vllm serve Qwen/Qwen3-32B \
-  --served-model-name qwen3-32b \
-  --tensor-parallel-size 1 \
-  --gpu-memory-utilization 0.9 \
-  --max-model-len 8192 \
-  --port 8200 \
-  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}'
-```
-
-**Terminal 3 — proxy** (after both vLLM servers are ready):
-```bash
-python3 examples/disaggregated/disaggregated_serving/disagg_proxy_demo.py \
-  --model qwen3-32b \
-  --prefill localhost:8100 \
-  --decode  localhost:8200 \
-  --port 8000
-```
-
-Send requests to `http://localhost:8000`.
-
-## Latency Models
-
-Configs live under `evaluation/`. The **physics** (calibrated) config is
-promoted into `k8s/` as the deployed simulator.
-
-| Directory | Description |
-|-----------|-------------|
-| [evaluation/flat](evaluation/flat/) | Empirical flat model (`base_ms` + per-token/per-seq terms) tuned by hand |
-| [evaluation/physics](evaluation/physics/) | Roofline physics model, calibrated betas β = [0.152, 0.0, 126.0] |
-| [evaluation/physics-beta-1.0](evaluation/physics-beta-1.0/) | Roofline physics model, unit betas β = [1.0, 1.0, 0.0] — uncalibrated baseline |
-
-Each latency directory contains:
-- `configmap.yaml` — model architecture + latency params as a Kubernetes ConfigMap
-- `sim-config.json` — same config as a plain JSON file for local use
-
-Resource names follow the scheme `vllm-qwen3-32b-pd-<hash>[-<role>]` where `<hash>` is a
-6-char SHA-256 of the latency config. This ensures simultaneous deployments of different variants
-never conflict.
-
-## Eval Results
-
-| Directory | Latency model used | Notes |
-|-----------|--------------------|-------|
-| [results/flat](results/flat/) | flat | — |
-| [results/physics-beta-1.0](results/physics-beta-1.0/) | physics-beta-1.0 | — |
-
-## Kubernetes (simulated)
+### Kubernetes (simulated)
 
 `k8s/` runs the disaggregated topology as the simulated model on CPU nodes — no
 GPUs required. Apply the manifests (skip `sim-config.json`; it's the plain-JSON
@@ -114,9 +47,119 @@ The proxy still uses the `vllm/vllm-openai` image because it runs vLLM's
 `disagg_proxy_demo.py`; it only routes HTTP (no CUDA imports) and declares no GPU
 request, so it schedules on a CPU node.
 
-Send all client traffic to `vllm-qwen3-32b-pd-eae748-proxy:8000`. The proxy forwards the prefill phase (`max_tokens=1`) to `vllm-qwen3-32b-pd-eae748-prefill`, then sends the full request to `vllm-qwen3-32b-pd-eae748-decode` for streaming generation.
+Send all client traffic to `vllm-qwen3-32b-pd-eae748-proxy:8000`. The proxy
+forwards the prefill phase (`max_tokens=1`) to `vllm-qwen3-32b-pd-eae748-prefill`,
+then sends the full request to `vllm-qwen3-32b-pd-eae748-decode` for streaming
+generation.
 
-### Eval (real vs sim comparison)
+**HF token:** Both backends read `HF_TOKEN` from a Secret named `hf-token` (key:
+`token`) — needed only if the tokenizer (`Qwen/Qwen3-32B`) is gated; the sim
+uses dummy weights, so no model download occurs. Create it before applying:
+
+```bash
+kubectl create secret generic hf-token -n <ns> --from-literal=token=<your-token>
+```
+
+The secret reference is `optional: true`, so pods start without it if the
+tokenizer is already cached or publicly accessible.
+
+**Readiness:** The sim starts quickly — no ~64 GB weight download. Each backend's
+`startupProbe` allows up to ~150 s (plugin install + CPU engine init) before
+liveness kicks in. The proxy's init containers poll `/health` on each backend
+every 5 s and block until both respond.
+
+**Node placement:** The simulated backends request `4` CPU / `8Gi` memory each
+and no GPU, so they schedule on ordinary CPU nodes — there is no `nodeSelector`.
+Add one (plus `tolerations`) only if you need to pin the sim to specific nodes.
+
+### Local (CPU, simulated)
+
+#### Prerequisites
+
+**vLLM must be built from source** — the PyPI package does not support CPU-only
+or macOS environments. See the [vLLM CPU build guide](https://docs.vllm.ai/en/latest/getting_started/installation/cpu.html)
+for platform-specific instructions.
+
+Once vLLM is installed, install this plugin from the `vllm-simulated-model`
+repo root:
+
+```bash
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e .
+```
+
+The plugin registers itself via the `vllm.general_plugins` entry point; no code
+changes to vLLM are needed.
+
+#### Run the simulator
+
+Open three terminals from the vLLM repo root.
+
+**Terminal 1 — prefill:**
+```bash
+VLLM_SIMULATED_PLUGIN_CONFIG=models/qwen3-32b/deployments/h100-sxm5/pd/evaluation/physics/sim-config.json \
+VLLM_NIXL_SIDE_CHANNEL_HOST=localhost \
+VLLM_NIXL_SIDE_CHANNEL_PORT=5600 \
+vllm serve Qwen/Qwen3-32B \
+  --served-model-name qwen3-32b \
+  --load-format dummy \
+  --port 8100 \
+  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}'
+```
+
+**Terminal 2 — decode:**
+```bash
+VLLM_SIMULATED_PLUGIN_CONFIG=models/qwen3-32b/deployments/h100-sxm5/pd/evaluation/physics/sim-config.json \
+VLLM_NIXL_SIDE_CHANNEL_HOST=localhost \
+VLLM_NIXL_SIDE_CHANNEL_PORT=5601 \
+vllm serve Qwen/Qwen3-32B \
+  --served-model-name qwen3-32b \
+  --load-format dummy \
+  --port 8200 \
+  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}'
+```
+
+**Terminal 3 — proxy** (after both vLLM servers are ready):
+```bash
+python3 examples/disaggregated/disaggregated_serving/disagg_proxy_demo.py \
+  --model qwen3-32b \
+  --prefill localhost:8100 \
+  --decode  localhost:8200 \
+  --port 8000
+```
+
+The commands above use the calibrated `physics` variant. To use a different
+latency model, replace `physics` with `flat` or `physics-beta-1.0` in the
+`VLLM_SIMULATED_PLUGIN_CONFIG` path. The `--load-format dummy` flag skips
+weight loading; the simulator reads latency parameters from the JSON config.
+Send requests to `http://localhost:8000`.
+
+## Latency Models
+
+Configs live under `evaluation/`.
+
+| Directory | Description |
+|-----------|-------------|
+| [evaluation/flat](evaluation/flat/) | Empirical flat model (`base_ms` + per-token/per-seq terms) tuned by hand |
+| [evaluation/physics](evaluation/physics/) | Roofline physics model, calibrated betas β = [0.152, 0.0, 126.0] |
+| [evaluation/physics-beta-1.0](evaluation/physics-beta-1.0/) | Roofline physics model, unit betas β = [1.0, 1.0, 0.0] — uncalibrated baseline |
+
+Each latency directory contains:
+- `configmap.yaml` — model architecture + latency params as a Kubernetes ConfigMap
+- `sim-config.json` — same config as a plain JSON file for local use
+- `prefill-deployment.yaml`, `prefill-service.yaml` — prefill backend manifests
+- `decode-deployment.yaml`, `decode-service.yaml` — decode backend manifests
+- `proxy-deployment.yaml`, `proxy-service.yaml` — proxy manifests
+
+## Eval Results
+
+| Directory | Latency model used | Notes |
+|-----------|--------------------|-------|
+| [results/flat](results/flat/) | flat | — |
+| [results/physics-beta-1.0](results/physics-beta-1.0/) | physics-beta-1.0 | — |
+
+## Eval (real vs sim comparison)
 
 `eval.sh` handles the whole lifecycle (setup → run → teardown) from the variant
 dir; the report lands under `evaluation/results/<variant>/` — commit it:
@@ -128,28 +171,3 @@ NAMESPACE=<ns> bash evaluation/eval.sh \
 
 Use `eval.sh tune <variant-dir>` to auto-tune a physics variant's `beta`. See
 `evaluation/README.md` for the full lifecycle, subcommands, and env knobs.
-
-### Node placement
-
-The simulated backends request `4` CPU / `8Gi` memory each and no GPU, so they
-schedule on ordinary CPU nodes — there is no `nodeSelector`. Add one (plus
-`tolerations`) only if you need to pin the sim to specific nodes.
-
-### HF token
-
-Both backends read `HF_TOKEN` from a Secret named `hf-token` (key: `token`) —
-needed only if the **tokenizer** (`Qwen/Qwen3-32B`) is gated; the sim uses dummy
-weights, so no model download occurs. Create it before applying:
-
-```bash
-kubectl create secret generic hf-token -n <ns> --from-literal=token=<your-token>
-```
-
-The secret reference is `optional: true`, so pods start without it if the tokenizer is already cached or publicly accessible.
-
-### Readiness
-
-The sim starts quickly — no ~64 GB weight download. Each backend's `startupProbe`
-allows up to ~150 s (plugin install + CPU engine init) before liveness kicks in.
-The proxy's init containers poll `/health` on each backend every 5 s and block
-until both respond.

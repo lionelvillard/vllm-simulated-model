@@ -8,9 +8,8 @@ on a laptop.
 
 ## Table of Contents
 
-- [Get Started](#get-started)
-  - [Local](#local)
-  - [Kubernetes](#kubernetes)
+- [Quick Start](#quick-start)
+- [Supported Models](#supported-models)
 - [Latency models](#latency-models)
   - [Linear model](#linear-model-type-linear)
   - [Physics model](#physics-model-type-physics)
@@ -18,128 +17,22 @@ on a laptop.
 - [Comparison with related tools](#comparison-with-related-tools)
 - [Limitations](#limitations)
 
-## Get Started
+## Quick Start
 
-### Local
+Production-calibrated deployments (Kubernetes and local CPU, including macOS)
+are available for the models listed below. Each deployment directory includes:
+- **k8s/** — production manifests (ConfigMap, Deployment, Service)
+- **evaluation/** — latency model variants (`physics`, `flat`, `physics-beta-1.0`)
+- **README.md** — full deployment instructions with prerequisites
 
-> **Note:** vLLM must be compiled from source — `pip install vllm` does not
-> support CPU-only / macOS environments. See the
-> [vLLM build guide](https://docs.vllm.ai/en/latest/getting_started/installation/cpu.html)
-> for platform-specific instructions.
+See [Supported Models](#supported-models) for the complete list.
 
-```bash
-uv venv --python 3.12
-source .venv/bin/activate
-# Build and install vLLM from source first (see note above)
-uv pip install -e .
-```
+## Supported Models
 
-The plugin registers itself via the `vllm.general_plugins` entry point; no code
-changes to vLLM are needed.
-
-**Run the simulator:**
-
-```bash
-vllm serve ./examples/sim-qwen-3.8-27b \
-  --load-format dummy \
-  --gpu-memory-utilization 0.2 \
-  --tokenizer Qwen/Qwen3-8B \
-  --served-model-name sim-qwen-3.8-27b
-```
-
-Then benchmark it like any vLLM server (e.g. `vllm bench serve ...`). Measured
-TTFT/ITL reflect the configured latency model, while every other component is
-the real vLLM code path.
-
-**Send a test request:**
-
-```bash
-curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "sim-qwen-3.8-27b",
-    "messages": [{"role": "user", "content": "Hello, world!"}],
-    "max_tokens": 32
-  }'
-```
-
-### Kubernetes
-
-Manifests for CPU-only linux/amd64 nodes live under
-`models/qwen3-32b/deployments/h100-sxm5/standalone/`. No custom image build is
-required — the plugin is injected at pod startup via an init container.
-
-**Prerequisites:** a cluster with at least one CPU node (4 CPU / 8 Gi) and internet
-egress so the init container can fetch the package from GitHub.
-
-If you need a private HuggingFace tokenizer, create the Secret before deploying
-(the deployment has `optional: true` so it starts fine without it):
-
-```bash
-kubectl create secret generic hf-token \
-  --from-literal=token=<your-hf-token> \
-  -n <namespace>
-```
-
-**Run the simulator:**
-
-```bash
-# 1. Create the shared PVC (once per cluster/namespace):
-kubectl apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/k8s/pvc.yaml
-
-# 2. Deploy the tuned sim (calibrated physics stack under k8s/):
-K=models/qwen3-32b/deployments/h100-sxm5/standalone/k8s
-kubectl apply -n <namespace> -f $K/configmap.yaml -f $K/deployment.yaml -f $K/service.yaml
-```
-
-This creates:
-
-| Resource | Name | Purpose |
-|---|---|---|
-| PVC | `vllm-qwen3-32b-hf-cache` | Shared HuggingFace model cache (step 1, shared across variants) |
-| ConfigMap | `vllm-qwen3-32b-standalone-eae748-config` | Model architecture and latency parameters |
-| Deployment | `vllm-qwen3-32b-standalone-eae748` | Single-replica CPU vLLM server |
-| Service | `vllm-qwen3-32b-standalone-eae748` | ClusterIP on port 8000 |
-
-Resource names embed a 6-char hash of the latency config so multiple variants can coexist in the same namespace without conflicts. See `models/qwen3-32b/deployments/h100-sxm5/standalone/README.md` for the full list of variants.
-
-The pod takes roughly 60–120 s to become ready: the init container installs the plugin
-(~10–30 s depending on network), then vLLM initializes the CPU engine.
-
-**Send a test request:**
-
-```bash
-kubectl port-forward svc/vllm-qwen3-32b-standalone-eae748 8000:8000
-curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "sim-qwen-3.8-27b",
-    "messages": [{"role": "user", "content": "Hello, world!"}],
-    "max_tokens": 16
-  }'
-```
-
-#### Tuning
-
-| What to change | Where | Guidance |
-|---|---|---|
-| KV cache size | `VLLM_CPU_KVCACHE_SPACE` env | Increase until ~80% of node memory used (default: 4 GB) |
-| Thread binding | `VLLM_CPU_OMP_THREADS_BIND` env | Match the CPU limit range, e.g. `0-7` for 8 CPUs (default: `0-3`) |
-| Memory cap | `--gpu-memory-utilization` in command | Increase toward `0.9` once stable (default: `0.5`) |
-| Model config | `models/qwen3-32b/deployments/h100-sxm5/standalone/k8s/configmap.yaml` | Edit the `config.json` data to change latency coefficients |
-| Tokenizer | `--tokenizer` in command | Use any HuggingFace tokenizer; set `hf-token` Secret if private |
-| Model name | `--served-model-name` in command | Change the name clients use in the `model` field |
-| Plugin version | tarball URL in init container command | Replace `/heads/main` with a release tag or commit SHA for production |
-
-#### OpenShift / non-root clusters
-
-The manifests already include the adjustments required for clusters that enforce non-root
-security policies:
-
-- `HOME=/tmp` and `XDG_CACHE_HOME=/tmp/cache` — redirect vLLM's Triton and model-info
-  caches away from read-only system paths
-- A `Memory`-backed emptyDir at `/dev/shm` (256 Mi) — vLLM's engine IPC requires more
-  than the 64 Mi Kubernetes default
+| Model | Hardware | Deployment Modes | Directory |
+|-------|----------|------------------|-----------|
+| Qwen3-32B | H100 SXM5 | Standalone | [models/qwen3-32b/deployments/h100-sxm5/standalone](models/qwen3-32b/deployments/h100-sxm5/standalone/) |
+| Qwen3-32B | H100 SXM5 | Prefill/Decode Disaggregation | [models/qwen3-32b/deployments/h100-sxm5/pd](models/qwen3-32b/deployments/h100-sxm5/pd/) |
 
 ## Latency models
 
@@ -151,7 +44,8 @@ flag **replaces** the entire `latency` mapping, so include every key you want
 set:
 
 ```bash
-vllm serve ./examples/sim-qwen-3.8-27b --load-format dummy \
+VLLM_SIMULATED_PLUGIN_CONFIG=/path/to/sim-config.json \
+vllm serve <model-id> --load-format dummy \
   --hf-overrides '{"latency": {"type": "linear", "base_ms": 5.0, ...}}'
 ```
 
@@ -307,5 +201,5 @@ vllm-simulated-model's physics latency model is adapted from BLIS's roofline mat
 ## Limitations
 
 - Generated text is random; only timing and stack behavior are meaningful.
-- Coefficients are user-supplied (no auto-calibration yet).
+- Physics model `beta` parameters require manual tuning or auto-calibration via `eval.sh tune` (see [evaluation/README.md](evaluation/README.md)).
 - Timing uses `time.sleep` (~1 ms granularity); best for ITL ≳ a few ms.
