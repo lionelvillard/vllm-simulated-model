@@ -275,7 +275,7 @@ sidecar — see above), then re-run the full evaluation sweep (`eval.sh run
 
 ### Extend the sweep
 
-Edit `evaluation/sweep.yaml` to add more benchmark points:
+Edit `<variant-dir>/sweep.yaml` to add more benchmark points:
 
 ```yaml
 points:

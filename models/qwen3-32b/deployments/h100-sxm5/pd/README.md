@@ -18,7 +18,7 @@ calibration source for `k8s/`.
 
 ### Pre-built Dependencies Image
 
-The deployment uses a pre-built container image (`ghcr.io/lionelvillard/vllm-sim-deps:v0.1.0`)
+The deployment uses a pre-built container image (`ghcr.io/lionelvillard/vllm-sim-deps:v0.3.0`)
 that bundles the simulated model plugin and NIXL dependencies. This significantly
 speeds up pod startup compared to installing dependencies via pip at runtime.
 
@@ -57,7 +57,7 @@ Both backends run the sim plugin (`vllm/vllm-openai-cpu` image, `--load-format
 dummy`) and mount the physics ConfigMap at `/model`. The `6-char` hash `eae748`
 is the SHA of the (physics) latency config, matching the ConfigMap and the
 `vllm-qwen3-32b-pd-<hash>[-<role>]` naming scheme. Both deployments include an
-init container (`ghcr.io/lionelvillard/vllm-sim-deps:v0.1.0`) that provides
+init container (`ghcr.io/lionelvillard/vllm-sim-deps:v0.3.0`) that provides
 pre-built dependencies: the simulated model plugin and NIXL 1.3.2 for KV cache
 transfer via `NixlConnector`.
 
@@ -234,7 +234,7 @@ The commands above use the calibrated `physics` variant. To use a different
 latency model, replace `physics` with `flat` or `physics-beta-1.0` in the
 `VLLM_SIMULATED_PLUGIN_CONFIG` path. The `--load-format dummy` flag skips
 weight loading; the simulator reads latency parameters from the JSON config.
-Send requests to `http://localhost:8000`.
+Send requests to `http://localhost:8080`.
 
 ## Latency Models
 

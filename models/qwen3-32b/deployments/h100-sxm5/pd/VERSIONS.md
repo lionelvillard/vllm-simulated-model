@@ -46,7 +46,6 @@ The init container image version follows the plugin version:
 
 - **Format:** `v<major>.<minor>.<patch>` (e.g., v0.1.0)
 - **Plugin version:** Matches the git tag used in the Dockerfile
-- **nixl version:** Specified in Dockerfile, tracked in compatibility table
 - **vLLM compatibility:** Documented based on testing
 
 ### When to bump versions
@@ -54,7 +53,7 @@ The init container image version follows the plugin version:
 | Change | Action |
 |--------|--------|
 | Plugin update (new features, bug fixes) | Create new git tag, rebuild image with new version |
-| nixl update (security, compatibility) | Bump patch version, update Dockerfile, rebuild |
+| Base image change (llm-d-cpu version) | Update compatibility table |
 | Breaking changes to vLLM integration | Bump major version |
 
 ## Updating to a New Version

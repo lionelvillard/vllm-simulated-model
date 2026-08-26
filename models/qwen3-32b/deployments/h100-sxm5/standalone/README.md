@@ -125,6 +125,7 @@ Reports live under `evaluation/results/<variant>/`, mirroring the config tree.
 | Directory | Latency model used | Notes |
 |-----------|--------------------|-------|
 | [evaluation/results/flat](evaluation/results/flat/) | flat | Initial eval run |
+| [evaluation/results/physics](evaluation/results/physics/) | physics | Calibrated (β=[0.15, 0.0, 126.0]) |
 | [evaluation/results/physics-beta-1.0](evaluation/results/physics-beta-1.0/) | physics-beta-1.0 | Pre-calibration baseline |
 
 ## Eval (real vs sim comparison)
