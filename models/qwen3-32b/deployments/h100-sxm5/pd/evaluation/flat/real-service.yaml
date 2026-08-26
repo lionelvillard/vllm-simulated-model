@@ -4,7 +4,7 @@ metadata:
   name: vllm-qwen3-32b-pd-dcd098-real
 spec:
   selector:
-    app: vllm-qwen3-32b-pd-dcd098-real
+    app: vllm-qwen3-32b-pd-dcd098-real-decode
   ports:
   - name: http
     port: 8000

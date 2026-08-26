@@ -4,7 +4,7 @@ metadata:
   name: vllm-qwen3-32b-pd-eae748-sim
 spec:
   selector:
-    app: vllm-qwen3-32b-pd-eae748-sim
+    app: vllm-qwen3-32b-pd-eae748-sim-decode
   ports:
   - name: http
     port: 8000

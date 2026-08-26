@@ -26,8 +26,15 @@
 # It must contain:
 #   - configmap.yaml          (sim model config; applied and recorded in the report)
 #   - sim-config.json         (plain-JSON sim config; its `beta` is tuned by `tune`)
-#   - real-deployment.yaml, real-service.yaml   (real model)
-#   - sim-deployment.yaml,  sim-service.yaml    (sim model)
+#   - real-service.yaml, sim-service.yaml   (entry-point services)
+#
+# Standalone variant (one pod per side):
+#   - real-deployment.yaml, sim-deployment.yaml
+#
+# P/D disaggregated variant (prefill + decode pods per side):
+#   - real-prefill-deployment.yaml, real-prefill-service.yaml, real-decode-deployment.yaml
+#   - sim-prefill-deployment.yaml,  sim-prefill-service.yaml,  sim-decode-deployment.yaml
+#
 # Its parent layout <eval>/<variant> determines where outputs are written:
 # <eval>/results/<variant> (e.g. evaluation/results/physics).
 #
@@ -68,11 +75,24 @@ res_name() {  # <kind> <file>
   ' "$2"
 }
 
+# Detect P/D disaggregated layout by presence of prefill manifests.
+PD_MODE=0
+[ -f "$EVAL_MANIFESTS/sim-prefill-deployment.yaml" ] && PD_MODE=1
+
 NAMESPACE="${VLLM_SIM_NAMESPACE:-${NAMESPACE:-}}"
 REAL_SVC="${REAL_SVC:-$(res_name Service    "$EVAL_MANIFESTS/real-service.yaml")}"
 SIM_SVC="${SIM_SVC:-$(res_name Service    "$EVAL_MANIFESTS/sim-service.yaml")}"
-REAL_DEP="${REAL_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/real-deployment.yaml")}"
-SIM_DEP="${SIM_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/sim-deployment.yaml")}"
+
+if [ "$PD_MODE" = "1" ]; then
+  REAL_PREFILL_DEP="${REAL_PREFILL_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/real-prefill-deployment.yaml")}"
+  REAL_DEP="${REAL_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/real-decode-deployment.yaml")}"
+  SIM_PREFILL_DEP="${SIM_PREFILL_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/sim-prefill-deployment.yaml")}"
+  SIM_DEP="${SIM_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/sim-decode-deployment.yaml")}"
+else
+  REAL_DEP="${REAL_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/real-deployment.yaml")}"
+  SIM_DEP="${SIM_DEP:-$(res_name Deployment "$EVAL_MANIFESTS/sim-deployment.yaml")}"
+fi
+
 REAL_PORT="${REAL_PORT:-9001}"
 SIM_PORT="${SIM_PORT:-9002}"
 OUT="${OUT:-$EVAL_DIR/results/$VARIANT}"
@@ -84,7 +104,16 @@ PYTHON="${PYTHON:-}"
 SETUP_TIMEOUT="${SETUP_TIMEOUT:-900s}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"
 
-if [ -z "$REAL_SVC" ] || [ -z "$SIM_SVC" ] || [ -z "$REAL_DEP" ] || [ -z "$SIM_DEP" ]; then
+_missing=0
+[ -z "$REAL_SVC" ] && _missing=1
+[ -z "$SIM_SVC" ]  && _missing=1
+[ -z "$REAL_DEP" ] && _missing=1
+[ -z "$SIM_DEP" ]  && _missing=1
+if [ "$PD_MODE" = "1" ]; then
+  [ -z "${REAL_PREFILL_DEP:-}" ] && _missing=1
+  [ -z "${SIM_PREFILL_DEP:-}" ]  && _missing=1
+fi
+if [ "$_missing" = "1" ]; then
   echo "ERROR: could not resolve resource names from $EVAL_MANIFESTS/*.yaml" >&2
   exit 2
 fi
@@ -110,32 +139,68 @@ kc() { "$KUBECTL" "${ns_flag[@]}" "$@"; }
 
 echo "command:  $CMD"
 echo "variant:  $VARIANT"
-echo "real:     dep/$REAL_DEP  svc/$REAL_SVC"
-echo "sim:      dep/$SIM_DEP  svc/$SIM_SVC"
+if [ "$PD_MODE" = "1" ]; then
+  echo "mode:     P/D disaggregated"
+  echo "real:     prefill/$REAL_PREFILL_DEP  decode/$REAL_DEP  svc/$REAL_SVC"
+  echo "sim:      prefill/$SIM_PREFILL_DEP  decode/$SIM_DEP  svc/$SIM_SVC"
+else
+  echo "real:     dep/$REAL_DEP  svc/$REAL_SVC"
+  echo "sim:      dep/$SIM_DEP  svc/$SIM_SVC"
+fi
 echo "out:      $OUT"
 
 do_setup() {
   echo "== setup =="
   kc apply -f "$MODEL_CONFIG"
-  kc apply -f "$EVAL_MANIFESTS/sim-deployment.yaml"
-  kc apply -f "$EVAL_MANIFESTS/sim-service.yaml"
-  kc apply -f "$EVAL_MANIFESTS/real-deployment.yaml"
-  kc apply -f "$EVAL_MANIFESTS/real-service.yaml"
-  echo "waiting for rollouts (timeout $SETUP_TIMEOUT; real downloads weights on first start)…"
-  kc rollout status "deployment/$SIM_DEP"  --timeout="$SETUP_TIMEOUT"
-  kc rollout status "deployment/$REAL_DEP" --timeout="$SETUP_TIMEOUT"
+  if [ "$PD_MODE" = "1" ]; then
+    kc apply -f "$EVAL_MANIFESTS/sim-prefill-deployment.yaml"
+    kc apply -f "$EVAL_MANIFESTS/sim-prefill-service.yaml"
+    kc apply -f "$EVAL_MANIFESTS/sim-decode-deployment.yaml"
+    kc apply -f "$EVAL_MANIFESTS/sim-service.yaml"
+    kc apply -f "$EVAL_MANIFESTS/real-prefill-deployment.yaml"
+    kc apply -f "$EVAL_MANIFESTS/real-prefill-service.yaml"
+    kc apply -f "$EVAL_MANIFESTS/real-decode-deployment.yaml"
+    kc apply -f "$EVAL_MANIFESTS/real-service.yaml"
+    echo "waiting for rollouts (timeout $SETUP_TIMEOUT; real downloads weights on first start)…"
+    kc rollout status "deployment/$SIM_PREFILL_DEP"  --timeout="$SETUP_TIMEOUT"
+    kc rollout status "deployment/$SIM_DEP"          --timeout="$SETUP_TIMEOUT"
+    kc rollout status "deployment/$REAL_PREFILL_DEP" --timeout="$SETUP_TIMEOUT"
+    kc rollout status "deployment/$REAL_DEP"         --timeout="$SETUP_TIMEOUT"
+  else
+    kc apply -f "$EVAL_MANIFESTS/sim-deployment.yaml"
+    kc apply -f "$EVAL_MANIFESTS/sim-service.yaml"
+    kc apply -f "$EVAL_MANIFESTS/real-deployment.yaml"
+    kc apply -f "$EVAL_MANIFESTS/real-service.yaml"
+    echo "waiting for rollouts (timeout $SETUP_TIMEOUT; real downloads weights on first start)…"
+    kc rollout status "deployment/$SIM_DEP"  --timeout="$SETUP_TIMEOUT"
+    kc rollout status "deployment/$REAL_DEP" --timeout="$SETUP_TIMEOUT"
+  fi
 }
 
 # teardown <scope>: "all" removes real too; "sim" keeps the real Deployment up.
 do_teardown() {
   local scope="${1:-all}"
   echo "== teardown ($scope) =="
-  kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-service.yaml"
-  kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-deployment.yaml"
-  kc delete --ignore-not-found -f "$MODEL_CONFIG"
-  if [ "$scope" = "all" ]; then
-    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-service.yaml"
-    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-deployment.yaml"
+  if [ "$PD_MODE" = "1" ]; then
+    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-service.yaml"
+    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-decode-deployment.yaml"
+    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-prefill-service.yaml"
+    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-prefill-deployment.yaml"
+    kc delete --ignore-not-found -f "$MODEL_CONFIG"
+    if [ "$scope" = "all" ]; then
+      kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-service.yaml"
+      kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-decode-deployment.yaml"
+      kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-prefill-service.yaml"
+      kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-prefill-deployment.yaml"
+    fi
+  else
+    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-service.yaml"
+    kc delete --ignore-not-found -f "$EVAL_MANIFESTS/sim-deployment.yaml"
+    kc delete --ignore-not-found -f "$MODEL_CONFIG"
+    if [ "$scope" = "all" ]; then
+      kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-service.yaml"
+      kc delete --ignore-not-found -f "$EVAL_MANIFESTS/real-deployment.yaml"
+    fi
   fi
 }
 

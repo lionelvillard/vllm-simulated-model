@@ -1,18 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-qwen3-32b-pd-72d33f-real
+  name: vllm-qwen3-32b-pd-eae748-real-prefill
   labels:
-    app: vllm-qwen3-32b-pd-72d33f-real
+    app: vllm-qwen3-32b-pd-eae748-real-prefill
+    role: prefill
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm-qwen3-32b-pd-72d33f-real
+      app: vllm-qwen3-32b-pd-eae748-real-prefill
   template:
     metadata:
       labels:
-        app: vllm-qwen3-32b-pd-72d33f-real
+        app: vllm-qwen3-32b-pd-eae748-real-prefill
+        role: prefill
     spec:
       nodeSelector:
         nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3  # <-- verify/replace for your cluster
@@ -34,7 +36,15 @@ spec:
         - "0.9"
         - --max-model-len
         - "8192"
+        - --kv-transfer-config
+        - '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}'
         env:
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+          value: "5600"
         - name: HF_HOME
           value: /tmp/hf
         - name: HOME
@@ -50,6 +60,8 @@ spec:
         ports:
         - containerPort: 8000
           name: http
+        - containerPort: 5600
+          name: nixl-side
         livenessProbe:
           httpGet:
             path: /health
