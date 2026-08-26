@@ -92,6 +92,12 @@ spec:
               fieldPath: status.podIP
         - name: VLLM_NIXL_SIDE_CHANNEL_PORT
           value: "5601"
+        - name: VLLM_PLUGINS
+          value: simulated_model,sim_tuner
+        - name: VLLM_SIM_TUNER
+          value: "1"
+        - name: VLLM_SIM_CONFIG_PATH
+          value: /tmp/sim-config.json
         - name: HOME
           value: /tmp
         - name: XDG_CACHE_HOME

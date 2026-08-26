@@ -58,6 +58,7 @@ def _post_beta(sim_url: str, beta: list[float]) -> None:
 def _make_bench_sim(
     *,
     sim_url: str,
+    sim_tuner_url: str,
     sim_model: str,
     tokenizer: str,
     real_result: dict,
@@ -69,7 +70,7 @@ def _make_bench_sim(
     def bench_sim(beta: list[float]) -> list[MetricComparison]:
         counter[0] += 1
         n = counter[0]
-        _post_beta(sim_url, beta)
+        _post_beta(sim_tuner_url, beta)
         time.sleep(0.5)  # barrier: let any in-flight requests drain
         fname = f"sim-tune-{n}.json"
         argv = bench_argv(
@@ -206,6 +207,7 @@ def tune(
     tokenizer: str,
     out_dir: str,
     seed: int = 0,
+    sim_tuner_url: str | None = None,
 ) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -241,8 +243,10 @@ def tune(
     real_result = load_result(out / real_fname)
     print("real benchmark done")
 
+    _tuner_url = sim_tuner_url or sim_url
     bench_sim = _make_bench_sim(
         sim_url=sim_url,
+        sim_tuner_url=_tuner_url,
         sim_model=sim_model,
         tokenizer=tokenizer,
         real_result=real_result,
@@ -255,7 +259,7 @@ def tune(
     print(f"tuned beta: {best_beta}")
 
     # Run one final benchmark at the tuned beta to record the final comparison
-    _post_beta(sim_url, best_beta)
+    _post_beta(_tuner_url, best_beta)
     time.sleep(0.5)
     final_fname = "sim-final.json"
     _run_bench(
@@ -295,6 +299,13 @@ def main(argv=None) -> None:
     ap.add_argument("--tokenizer", default="Qwen/Qwen3-32B")
     ap.add_argument("--out", default="tune-out")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument(
+        "--sim-tuner-url",
+        default=None,
+        help="URL for POST /sim/config. Defaults to --sim-url. Use in P/D "
+             "mode where the proxy does not forward /sim/config to the vllm "
+             "backend.",
+    )
     args = ap.parse_args(argv)
     tune(
         real_url=args.real_url,
@@ -303,6 +314,7 @@ def main(argv=None) -> None:
         tokenizer=args.tokenizer,
         out_dir=args.out,
         seed=args.seed,
+        sim_tuner_url=args.sim_tuner_url,
     )
 
 

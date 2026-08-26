@@ -95,6 +95,7 @@ fi
 
 REAL_PORT="${REAL_PORT:-9001}"
 SIM_PORT="${SIM_PORT:-9002}"
+SIM_TUNER_PORT="${SIM_TUNER_PORT:-9003}"
 OUT="${OUT:-$EVAL_DIR/results/$VARIANT}"
 MODEL_CONFIG="${MODEL_CONFIG:-$VARIANT_DIR/configmap.yaml}"
 SIM_CONFIG="${SIM_CONFIG:-$VARIANT_DIR/sim-config.json}"
@@ -263,11 +264,23 @@ do_tune() {
   fi
   start_forwards
 
+  local tuner_url_flag=()
+  if [ "$PD_MODE" = "1" ]; then
+    # The P/D proxy (port 8000) does not forward /sim/config to the vllm
+    # backend. Forward directly to the decode pod's vllm (port 8200) so
+    # beta POSTs reach the tuner endpoint.
+    kc port-forward "deployment/$SIM_DEP" "$SIM_TUNER_PORT:8200" >/dev/null 2>&1 &
+    pids+=($!)
+    wait_health "$SIM_TUNER_PORT" sim-tuner
+    tuner_url_flag=(--sim-tuner-url "http://127.0.0.1:$SIM_TUNER_PORT")
+  fi
+
   "$PYTHON" -m evaluation.tune \
     --real-url "http://127.0.0.1:$REAL_PORT" \
     --sim-url "http://127.0.0.1:$SIM_PORT" \
     --model-config "$SIM_CONFIG" \
-    --out "$OUT"
+    --out "$OUT" \
+    "${tuner_url_flag[@]}"
 }
 
 case "$CMD" in
