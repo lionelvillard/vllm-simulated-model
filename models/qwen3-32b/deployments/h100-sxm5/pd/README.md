@@ -156,30 +156,6 @@ uv pip install -e .
 The plugin registers itself via the `vllm.general_plugins` entry point; no code
 changes to vLLM are needed.
 
-**NIXL installation** — the `NixlConnector` requires the NIXL library for KV
-cache transfer. **NIXL is Linux-only** (tested on Ubuntu 22.04/24.04 and Fedora).
-
-**Quick start (NVIDIA GPU on Linux):**
-```bash
-uv pip install nixl==1.3.2
-```
-
-**CPU-only Linux:**
-NIXL supports multiple transport backends (UCX with RDMA/TCP, LIBFABRIC, etc.).
-The PyPI wheel includes UCX. For CPU-only environments or custom builds, you can
-build UCX and NIXL from source from the vLLM repo root (sibling `../vllm`):
-```bash
-python tools/install_nixl_from_source_ubuntu.py
-```
-
-If not running as root, manually install system dependencies first:
-```bash
-sudo apt-get install -y build-essential git cmake ninja-build \
-  autotools-dev automake meson libtool libtool-bin pkg-config patchelf
-```
-
-For more details on real NIXL, see the [NIXL usage guide](https://docs.vllm.ai/en/latest/features/nixl_connector_usage.html).
-
 > [!NOTE]
 > This deployment uses `SimulatedNixlConnector`, which does **not** require
 > NIXL, UCX, or RDMA hardware. It simulates KV transfer latency using a
