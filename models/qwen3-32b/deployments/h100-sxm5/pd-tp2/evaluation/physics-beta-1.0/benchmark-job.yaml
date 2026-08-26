@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vllm-qwen3-32b-pd-tp2-d960e4-benchmark
+  labels:
+    app: vllm-qwen3-32b-pd-tp2-d960e4-benchmark
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: vllm-qwen3-32b-pd-tp2-d960e4-benchmark
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: benchmark
+        image: vllm/vllm-openai-cpu:latest-x86_64
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          mkdir -p /tmp/src /tmp/pydeps
+          python -c "import urllib.request, tarfile; \
+            urllib.request.urlretrieve('https://github.com/lionelvillard/vllm-simulated-model/archive/refs/heads/main.tar.gz', '/tmp/src.tgz'); \
+            tarfile.open('/tmp/src.tgz').extractall('/tmp/src')"
+          pip install --no-cache-dir --target=/tmp/pydeps pyyaml
+          export PYTHONPATH="/tmp/src/vllm-simulated-model-main:/tmp/pydeps"
+          cd /tmp/src/vllm-simulated-model-main
+          python -m evaluation.run_eval \
+            --real-url http://vllm-qwen3-32b-pd-tp2-d960e4-real:8000 \
+            --sim-url http://vllm-qwen3-32b-pd-tp2-d960e4-sim:8000 \
+            --out /out
+        env:
+        - name: HOME
+          value: /tmp
+        - name: XDG_CACHE_HOME
+          value: /tmp/cache
+        - name: HF_HOME
+          value: /tmp/hf
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+              optional: true
+        volumeMounts:
+        - name: output
+          mountPath: /out
+      volumes:
+      - name: output
+        emptyDir: {}

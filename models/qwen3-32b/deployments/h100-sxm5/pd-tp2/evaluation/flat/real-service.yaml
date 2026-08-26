@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-qwen3-32b-pd-tp2-5ab4c9-real
+spec:
+  selector:
+    app: vllm-qwen3-32b-pd-tp2-5ab4c9-real-decode
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP

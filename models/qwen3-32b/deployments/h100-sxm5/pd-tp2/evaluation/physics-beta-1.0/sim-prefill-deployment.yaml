@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-qwen3-32b-pd-tp2-d960e4-sim-prefill
+  labels:
+    app: vllm-qwen3-32b-pd-tp2-d960e4-sim-prefill
+    role: prefill
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-qwen3-32b-pd-tp2-d960e4-sim-prefill
+  template:
+    metadata:
+      labels:
+        app: vllm-qwen3-32b-pd-tp2-d960e4-sim-prefill
+        role: prefill
+    spec:
+      initContainers:
+      - name: install-plugin
+        image: ghcr.io/lionelvillard/vllm-sim-deps:v0.3.0
+        imagePullPolicy: Always
+        command:
+        - sh
+        - -c
+        - cp -r /plugins/* /mnt/plugins/
+        volumeMounts:
+        - name: plugins
+          mountPath: /mnt/plugins
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai-cpu:v0.27.0-x86_64
+        command:
+        - vllm
+        - serve
+        - /model
+        - --load-format=dummy
+        - --max-model-len=16384
+        - --tokenizer=Qwen/Qwen3-32B
+        - --served-model-name=qwen3-32b
+        - --gpu-memory-utilization=0.5
+        - --tensor-parallel-size=2
+        - --kv-transfer-config
+        - '{"kv_connector":"SimulatedNixlConnector","kv_role":"kv_producer","kv_connector_extra_config":{"bandwidth_gbps":100,"handshake_ms":2}}'
+        env:
+        - name: PYTHONPATH
+          value: /plugins
+        - name: VLLM_CPU_KVCACHE_SPACE
+          value: "4"
+        - name: VLLM_CPU_OMP_THREADS_BIND
+          value: "0-7"
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+          value: "5600"
+        - name: HOME
+          value: /tmp
+        - name: XDG_CACHE_HOME
+          value: /tmp/cache
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+              optional: true
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 5600
+          name: nixl-side
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "8"
+            memory: 16Gi
+          limits:
+            cpu: "8"
+            memory: 16Gi
+        volumeMounts:
+        - name: plugins
+          mountPath: /plugins
+        - name: model-config
+          mountPath: /model
+          readOnly: true
+        - name: dshm
+          mountPath: /dev/shm
+      volumes:
+      - name: plugins
+        emptyDir: {}
+      - name: model-config
+        configMap:
+          name: vllm-qwen3-32b-pd-tp2-d960e4-config
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi

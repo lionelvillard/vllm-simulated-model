@@ -16,10 +16,12 @@ from vllm_simulated.latency import (
 )
 
 
-def _load_latency_from_file(config_path: str, hf_config) -> LatencyModel:
+def _load_latency_from_file(config_path: str, hf_config, tp: int = 1) -> LatencyModel:
     with open(config_path) as f:
         data = json.load(f)
-    return build_latency_model(data["latency"], hf_config=hf_config)
+    latency = dict(data["latency"])
+    latency["tp"] = tp
+    return build_latency_model(latency, hf_config=hf_config)
 
 
 def _bootstrap_config_file(config_path: str, hf_config) -> None:
@@ -33,7 +35,7 @@ def _bootstrap_config_file(config_path: str, hf_config) -> None:
     os.replace(tmp, p)
 
 
-def _build_latency_model(hf_config) -> LatencyModel:
+def _build_latency_model(hf_config, tp: int = 1) -> LatencyModel:
     """Build a LatencyModel from hf_config, raising on missing latency block."""
     latency = getattr(hf_config, "latency", None)
     if not latency:
@@ -41,6 +43,8 @@ def _build_latency_model(hf_config) -> LatencyModel:
             "SimulatedForCausalLM requires a non-empty 'latency' block in "
             "the model config; none was found. See the plugin README."
         )
+    latency = dict(latency)
+    latency["tp"] = tp
     return build_latency_model(latency, hf_config=hf_config)
 
 
@@ -76,7 +80,8 @@ class SimulatedForCausalLM(nn.Module):
             ]
         )
 
-        self.latency = _build_latency_model(hf_config)
+        self._tp = parallel_config.tensor_parallel_size
+        self.latency = _build_latency_model(hf_config, tp=self._tp)
         self._hf_config = hf_config
         self._config_path: str | None = os.environ.get("VLLM_SIM_CONFIG_PATH")
         self._config_mtime: int = 0
@@ -107,7 +112,7 @@ class SimulatedForCausalLM(nn.Module):
             mtime = os.stat(self._config_path).st_mtime_ns
             if mtime != self._config_mtime:
                 self.latency = _load_latency_from_file(
-                    self._config_path, self._hf_config
+                    self._config_path, self._hf_config, tp=self._tp
                 )
                 self._config_mtime = mtime
 
