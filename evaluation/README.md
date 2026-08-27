@@ -266,10 +266,24 @@ Each optimizer call runs `vllm bench serve` against the sim server (after POSTin
 | `sim-tune-<n>.json` | Sim benchmark result for each optimizer call |
 | `sim-final.json` | Sim benchmark result at the final tuned beta |
 
-After tuning, promote `tuned-sim-config.json` into the variant: copy its
-`latency.beta` into `configmap.yaml` (and regenerate the `sim-config.json`
-sidecar — see above), then re-run the full evaluation sweep (`eval.sh run
-<variant-dir>`) to confirm the improvement generalises across all sweep points.
+After tuning, promote `tuned-sim-config.json` into the k8s deployment directory
+with the `promote` subcommand:
+
+```bash
+python -m evaluation.run_eval promote \
+  --deployment-dir models/qwen3-32b/deployments/h100-sxm5/standalone
+```
+
+Both paths are derived from `--deployment-dir`:
+- tuned config: `<deployment>/evaluation/results/<latency-model>/tuned-sim-config.json`
+- k8s targets: `<deployment>/k8s/sim-config.json` and `<deployment>/k8s/configmap.yaml`
+
+Use `--latency-model` to select a variant other than `physics`.
+
+This updates both `sim-config.json` and `configmap.yaml` in the target directory
+with the new `latency.beta` values. Then re-run the full evaluation sweep
+(`eval.sh run <variant-dir>`) to confirm the improvement generalises across all
+sweep points.
 
 ## Customize the evaluation
 

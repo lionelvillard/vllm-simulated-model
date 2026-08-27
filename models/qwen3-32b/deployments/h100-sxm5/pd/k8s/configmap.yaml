@@ -24,7 +24,7 @@ data:
           "hbm_gbps": 3350.0,
           "weight_dtype": "bfloat16"
         },
-        "beta": [0.152128, 0.0, 126.024825],
+        "beta": [3.119229, 1.182904, 0.146612],
         "tp": 1,
         "deterministic_length": true
       }

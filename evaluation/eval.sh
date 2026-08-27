@@ -3,7 +3,7 @@
 # evaluation sweep or an auto-tuning search against it, then tear it down.
 #
 # Usage:
-#   eval.sh [setup|run|tune|teardown|all] <variant-dir>
+#   eval.sh [setup|run|tune|promote|teardown|all] <variant-dir>
 #   eval.sh <variant-dir>                 # shorthand for: all <variant-dir>
 #
 # Commands:
@@ -14,6 +14,9 @@
 #   tune      Full lifecycle: setup, auto-tune the physics `beta` parameters
 #             against the real server, then teardown. Only meaningful for a
 #             physics variant (needs the sim's POST /sim/config endpoint).
+#   promote   Write the tuned beta from evaluation/results/<variant>/ into the
+#             deployment's k8s/sim-config.json and k8s/configmap.yaml. No cluster
+#             access needed; run this after `tune` to persist the result.
 #   teardown  Delete the ConfigMap + real/sim Deployments and Services.
 #   all       Full lifecycle: setup → run → teardown (the default).
 #
@@ -50,7 +53,7 @@ usage() {
 
 CMD="all"
 case "${1:-}" in
-  setup|run|tune|teardown|all) CMD="$1"; shift ;;
+  setup|run|tune|promote|teardown|all) CMD="$1"; shift ;;
   -h|--help) usage ;;
 esac
 
@@ -247,12 +250,19 @@ do_run() {
   [ -f "$SWEEP" ] && sweep_flag=(--sweep "$SWEEP")
   [ -n "$MODEL_CONFIG" ] && model_config_flag=(--model-config "$MODEL_CONFIG")
 
-  "$PYTHON" -m evaluation.run_eval \
+  "$PYTHON" -m evaluation.run_eval eval \
     --real-url "http://127.0.0.1:$REAL_PORT" \
     --sim-url "http://127.0.0.1:$SIM_PORT" \
     --out "$OUT" \
     "${sweep_flag[@]}" \
     "${model_config_flag[@]}"
+}
+
+do_promote() {
+  echo "== promote (tuned beta → k8s config) =="
+  "$PYTHON" -m evaluation.run_eval promote \
+    --deployment-dir "$(dirname "$EVAL_DIR")" \
+    --latency-model "$VARIANT"
 }
 
 do_tune() {
@@ -286,6 +296,7 @@ do_tune() {
 case "$CMD" in
   setup)    do_setup ;;
   run)      do_run ;;
+  promote)  do_promote ;;
   teardown) do_teardown all ;;
   all)      do_setup; do_run;  teardown_or_keep ;;
   tune)     do_setup; do_tune; teardown_or_keep ;;
