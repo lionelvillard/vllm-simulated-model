@@ -4,7 +4,8 @@ An out-of-tree vLLM plugin that runs the **full vLLM serving stack** on CPU
 (incl. macOS) without a real model, real weights, or a GPU. It returns random
 tokens and sleeps to reproduce a target model's latency profile, so you can
 benchmark and load-test vLLM's scheduler, batching, API server, and streaming
-on a laptop.
+on a laptop. For prefill/decode disaggregation, the NIXL KV-transfer connector
+is replaced with a bandwidth-based latency model — no real RDMA transfers occur.
 
 ## Table of Contents
 
@@ -107,8 +108,12 @@ dimensions, MoE topology). Both dense and MoE architectures are supported,
 including interleaved MoE layers and shared-expert FFNs.
 
 Use this when you have hardware specs (peak TFLOPs, HBM bandwidth) and want
-predictions that automatically reflect model architecture and TP degree without
-manual coefficient fitting.
+predictions that automatically reflect model architecture and tensor-parallel
+degree without manual coefficient fitting. Tensor parallelism is genuinely
+simulated: launching the sim with `--tensor-parallel-size N` spawns N real vLLM
+worker processes, and the model divides per-GPU compute, KV, and weight-load
+work by `N` so each worker's per-step sleep reflects the TP speedup. The degree
+is read from `--tensor-parallel-size`, not set in `config.json`.
 
 **`hardware` block (required):**
 
@@ -135,7 +140,13 @@ LLM inference:
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `beta` | [float, float, float] | `[1.0, 1.0, 0.0]` | Scaling factors `[beta_pf, beta_dc, beta_base]` (all ≥ 0). |
-| `tp` | int | `1` | Tensor-parallel degree. Set this to match your actual deployment — the model divides weight and projection FLOPs across `tp` GPUs. |
+
+> [!NOTE]
+> The tensor-parallel degree is **not** a `config.json` key — it is read from
+> vLLM's `--tensor-parallel-size` at load time (any `tp` written into the
+> `latency` block is ignored). The model divides FLOPs, KV, and weight-load
+> terms by that degree to model per-GPU work. Collective-communication overhead
+> (~2 all-reduces per dense layer) is not modeled and is absorbed by `beta`.
 
 `beta` absorbs software overhead that the roofline does not model (kernel launch
 latency, NCCL collectives, framework overhead). Start with `[1.0, 1.0, 0.0]`
@@ -148,7 +159,10 @@ and tune against a short real benchmark run:
 - **`beta_base`** is a fixed additive term (ms). Use it to capture constant
   per-step overhead such as scheduling or sampler time (typically 0–5 ms).
 
-**Example — Qwen3-235B-A22B on A100 SXM4 80 GB:**
+**Example — Qwen3-235B-A22B on A100 SXM4 80 GB (TP=8):**
+
+Set the tensor-parallel degree on the serve command
+(`vllm serve … --tensor-parallel-size 8`); it is not part of the `latency` block:
 
 ```json
 "latency": {
@@ -159,7 +173,6 @@ and tune against a short real benchmark run:
     "weight_dtype": "bfloat16"
   },
   "beta": [1.0, 1.0, 0.0],
-  "tp": 8,
   "deterministic_length": true
 }
 ```
@@ -205,6 +218,8 @@ vllm-simulated-model's physics latency model is adapted from BLIS's roofline mat
 - Generated text is random; only timing and stack behavior are meaningful.
 - Physics model `beta` parameters require manual tuning or auto-calibration via `eval.sh tune` (see [evaluation/README.md](evaluation/README.md)).
 - Timing uses `time.sleep` (~1 ms granularity); best for ITL ≳ a few ms.
+- Tensor parallelism runs as real worker processes, but the physics roofline models the per-GPU speedup as ideal (work divided by TP degree); it omits collective-communication overhead (~2 all-reduces per dense layer), which must be absorbed by `beta`.
+- For prefill/decode disaggregation, NIXL KV transfer is simulated via a bandwidth model — no real RDMA transfers occur.
 
 ## Development
 

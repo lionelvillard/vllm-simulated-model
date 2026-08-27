@@ -24,7 +24,9 @@ def test_build_preserves_architecture_and_injects_physics():
     lat = sim["latency"]
     assert lat["type"] == "physics"
     assert lat["hardware"] == H100_SXM5
-    assert lat["tp"] == 1
+    # tp is not written to config; the plugin derives it from
+    # --tensor-parallel-size at load time.
+    assert "tp" not in lat
     assert lat["beta"] == [1.0, 1.0, 0.0]
     assert lat["deterministic_length"] is True
 

@@ -54,12 +54,17 @@ The simulated model's `config.json` must match the real model's architecture. Ge
 **Flags:**
 - `--model <HF id or path to config.json>` (required): the real model to match
 - `--out <path>` (required): output ConfigMap YAML path
-- `--tp <int>` (default: 1): tensor-parallel degree
 - `--peak-tflops <float>` (default: 989.0): H100 SXM5 peak TFLOPs
 - `--hbm-gbps <float>` (default: 3350.0): H100 SXM5 HBM bandwidth (GB/s)
 - `--weight-dtype <str>` (default: bfloat16): weight data type
 
 To change the target model or GPU spec, adjust these flags and regenerate. The ConfigMap name is derived from the latency config hash (e.g. `vllm-qwen3-32b-standalone-eae748-config` for the `physics` variant).
+
+> [!NOTE]
+> The tensor-parallel degree is not a generated config field — the sim reads it
+> from the Deployment's `--tensor-parallel-size` at load time. To simulate a
+> TP=N deployment, set that flag on the sim server (as the `pd-tp2` deployment
+> does); the physics model then divides per-GPU work by N automatically.
 
 ### `sim-config.json` sidecar
 
@@ -305,7 +310,7 @@ Each point runs on the real H100, so keep the matrix small.
 ### Change the model or GPU
 
 To evaluate a different model or hardware:
-1. Regenerate the sim config with `gen_sim_config.py` using the appropriate `--model`, `--tp`, `--peak-tflops`, `--hbm-gbps`, and `--weight-dtype` flags.
+1. Regenerate the sim config with `gen_sim_config.py` using the appropriate `--model`, `--peak-tflops`, `--hbm-gbps`, and `--weight-dtype` flags. (For a TP deployment, set `--tensor-parallel-size` on the sim server rather than in the config.)
 2. Update `models/qwen3-32b/deployments/h100-sxm5/standalone/evaluation/physics/eval/real-deployment.yaml` to request the correct model and GPU type.
 3. Redeploy: `oc apply -n <namespace> -f models/qwen3-32b/deployments/h100-sxm5/standalone/evaluation/physics/eval/`
 

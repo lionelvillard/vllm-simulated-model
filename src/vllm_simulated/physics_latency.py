@@ -61,6 +61,9 @@ class PhysicsConfig:
             )
         if any(b < 0 for b in beta_list):
             raise ValueError("beta values must be >= 0")
+        # tp is injected at load time from parallel_config.tensor_parallel_size
+        # (see model.py); it is not a user-facing config.json key. The default
+        # of 1 applies only when the model is built outside vLLM (e.g. tests).
         tp = d.get("tp", 1)
         if not isinstance(tp, int) or tp < 1:
             raise ValueError(f"tp must be a positive integer, got {tp!r}")

@@ -11,10 +11,12 @@ def build_sim_config(
     real_config: dict,
     *,
     hardware: dict = H100_SXM5,
-    tp: int = 1,
     beta=(1.0, 1.0, 0.0),
     deterministic_length: bool = True,
 ) -> dict:
+    # NOTE: the tensor-parallel degree is intentionally not written here. The
+    # plugin derives it at load time from vLLM's --tensor-parallel-size
+    # (see src/vllm_simulated/model.py); any "tp" in this block would be ignored.
     sim = copy.deepcopy(real_config)
     sim.pop("latency", None)
     sim["architectures"] = ["SimulatedForCausalLM"]
@@ -22,7 +24,6 @@ def build_sim_config(
         "type": "physics",
         "hardware": dict(hardware),
         "beta": [float(b) for b in beta],
-        "tp": int(tp),
         "deterministic_length": bool(deterministic_length),
     }
     return sim
@@ -58,7 +59,6 @@ def main(argv=None):
     )
     ap.add_argument("--model", required=True, help="HF model id or path to config.json")
     ap.add_argument("--out", required=True, help="output ConfigMap YAML path")
-    ap.add_argument("--tp", type=int, default=1)
     ap.add_argument(
         "--peak-tflops", type=float, default=H100_SXM5["peak_tflops"]
     )
@@ -74,7 +74,7 @@ def main(argv=None):
         "hbm_gbps": args.hbm_gbps,
         "weight_dtype": args.weight_dtype,
     }
-    sim = build_sim_config(real, hardware=hardware, tp=args.tp)
+    sim = build_sim_config(real, hardware=hardware)
     with open(args.out, "w") as f:
         f.write(render_configmap(sim))
     print(f"wrote {args.out}")
